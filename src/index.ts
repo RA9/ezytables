@@ -1118,7 +1118,8 @@ export class EasyTables {
   }
 
   public goToPage(page: number): void {
-    if (page < 1 || page > this.getTotalPages()) return;
+    const totalPages = Math.max(1, this.getTotalPages());
+    if (page < 1 || page > totalPages) return;
     this.currentPage = page;
     if (this.targetTable) {
       document.querySelector(

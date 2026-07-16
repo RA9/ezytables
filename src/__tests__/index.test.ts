@@ -404,6 +404,20 @@ describe("Data Management", () => {
     expect(getRenderedData()).toHaveLength(2);
     expect(getRenderedData()[0]).toMatchObject({ name: "Xena" });
   });
+
+  it("goToPage(1) still updates table when data is empty", async () => {
+    const { table } = createInstance();
+    await flushPromises();
+
+    table.setData([]);
+    await flushPromises();
+
+    const updateTableSpy = vi.spyOn(table as any, "updateTable");
+    table.goToPage(1);
+
+    expect(table.getCurrentPage()).toBe(1);
+    expect(updateTableSpy).toHaveBeenCalledTimes(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
