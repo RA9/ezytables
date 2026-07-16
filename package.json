@@ -36,7 +36,7 @@
     "test:coverage": "vitest run --coverage",
     "uninstall-husky": "npm uninstall husky --no-save && git config --unset core.hooksPath && npx rimraf .husky"
   },
-  "homepage": "https://ra9.github.io/ezytables/",
+  "homepage": "https://RA9.github.io/ezytables/",
   "repository": {
     "type": "git",
     "url": "https://github.com/RA9/ezytables"
