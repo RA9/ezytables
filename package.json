@@ -1,6 +1,7 @@
 {
   "name": "ezytables",
   "version": "0.11.0",
+  "license": "MIT",
   "main": "./dist/ezytables.cjs",
   "module": "./dist/ezytables.mjs",
   "exports": {
