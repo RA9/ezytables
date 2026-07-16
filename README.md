@@ -48,10 +48,10 @@ const table = new EzyTables({
   data,
   clientEnabled: true,
   client: { perPage: 10 },
-  renderFunction: (pageData) => {
+  renderFunction: pageData => {
     const tbody = document.querySelector("#myTable tbody");
     tbody.innerHTML = "";
-    pageData.forEach((item) => {
+    pageData.forEach(item => {
       const row = document.createElement("tr");
       row.innerHTML = `
         <td>${item.name}</td>
@@ -64,13 +64,17 @@ const table = new EzyTables({
 });
 
 // Search
-document.querySelector("#search").addEventListener("input", (e) => {
+document.querySelector("#search").addEventListener("input", e => {
   table.setSearchDebounced(e.target.value);
 });
 
 // Pagination
-document.querySelector("#prev").addEventListener("click", () => table.prevPage());
-document.querySelector("#next").addEventListener("click", () => table.nextPage());
+document
+  .querySelector("#prev")
+  .addEventListener("click", () => table.prevPage());
+document
+  .querySelector("#next")
+  .addEventListener("click", () => table.nextPage());
 ```
 
 ### Target Table Mode
@@ -96,22 +100,22 @@ const table = new EzyTables({
 
 ## API Reference
 
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `new EzyTables(options)` | `EasyTables` | Create a new table instance |
-| `setSearchDebounced(query)` | `void` | Search with 300ms debounce |
-| `sortData(field, order?)` | `void` | Sort by field (`"asc"` or `"desc"`) |
-| `nextPage()` | `void` | Go to next page |
-| `prevPage()` | `void` | Go to previous page |
-| `goToPage(page)` | `void` | Jump to a specific page |
-| `getCurrentPage()` | `number` | Get current page number |
-| `getTotalPages()` | `number` | Get total page count |
-| `getShowingInfo()` | `string` | Get display info (e.g., "Showing 1 to 10 of 50 items") |
-| `setPerPage(n)` | `void` | Change items per page |
-| `registerPlugin(plugin)` | `void` | Register a data transform plugin |
-| `setData(data)` | `void` | Replace the data source |
-| `getRawData()` | `any[]` | Get a copy of the raw data |
-| `destroy()` | `void` | Clean up and remove the table |
+| Method                      | Returns      | Description                                            |
+| --------------------------- | ------------ | ------------------------------------------------------ |
+| `new EzyTables(options)`    | `EasyTables` | Create a new table instance                            |
+| `setSearchDebounced(query)` | `void`       | Search with 300ms debounce                             |
+| `sortData(field, order?)`   | `void`       | Sort by field (`"asc"` or `"desc"`)                    |
+| `nextPage()`                | `void`       | Go to next page                                        |
+| `prevPage()`                | `void`       | Go to previous page                                    |
+| `goToPage(page)`            | `void`       | Jump to a specific page                                |
+| `getCurrentPage()`          | `number`     | Get current page number                                |
+| `getTotalPages()`           | `number`     | Get total page count                                   |
+| `getShowingInfo()`          | `string`     | Get display info (e.g., "Showing 1 to 10 of 50 items") |
+| `setPerPage(n)`             | `void`       | Change items per page                                  |
+| `registerPlugin(plugin)`    | `void`       | Register a data transform plugin                       |
+| `setData(data)`             | `void`       | Replace the data source                                |
+| `getRawData()`              | `any[]`      | Get a copy of the raw data                             |
+| `destroy()`                 | `void`       | Clean up and remove the table                          |
 
 ## Plugins
 
@@ -121,7 +125,7 @@ Transform cell data before rendering:
 const datePlugin = {
   name: "dateFormat",
   field: "date",
-  transform: (value) => {
+  transform: value => {
     return new Date(value).toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
@@ -141,27 +145,27 @@ const table = new EzyTables({
 
 ```typescript
 interface EasyTablesOptions {
-  clientEnabled?: boolean;       // Enable client-side mode (default: true)
-  data?: any[];                  // Data source array
-  target?: string;               // CSS selector for existing table
+  clientEnabled?: boolean; // Enable client-side mode (default: true)
+  data?: any[]; // Data source array
+  target?: string; // CSS selector for existing table
   renderFunction?: (data) => void; // Custom render callback
   client?: {
     limit: number;
-    perPage?: number;            // Items per page (default: 10)
+    perPage?: number; // Items per page (default: 10)
   };
   server?: {
     api_url: string;
     headers?: Record<string, string>;
     limit: number;
     page: number;
-    dataNames: string;           // Dot-separated path to data in response
+    dataNames: string; // Dot-separated path to data in response
   };
   columns?: Column[];
-  classes?: Classes;             // CSS class overrides
-  plugins?: Plugin[];            // Data transform plugins
+  classes?: Classes; // CSS class overrides
+  plugins?: Plugin[]; // Data transform plugins
   hideDetails?: {
-    header?: boolean;            // Hide search/per-page controls
-    footer?: boolean;            // Hide pagination footer
+    header?: boolean; // Hide search/per-page controls
+    footer?: boolean; // Hide pagination footer
   };
 }
 ```
