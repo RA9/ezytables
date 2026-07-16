@@ -1,0 +1,449 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { EasyTables } from "../index";
+
+/**
+ * Helper to flush pending microtasks so that the async `updateTable()` /
+ * `getData()` chain inside EasyTables has time to resolve and call the
+ * renderFunction before we make assertions.
+ */
+function flushPromises(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+const sampleData = [
+  { name: "Alice", email: "alice@example.com", role: "Admin" },
+  { name: "Bob", email: "bob@example.com", role: "User" },
+  { name: "Charlie", email: "charlie@example.com", role: "User" },
+  { name: "Diana", email: "diana@example.com", role: "Admin" },
+  { name: "Eve", email: "eve@example.com", role: "User" },
+  { name: "Frank", email: "frank@example.com", role: "Moderator" },
+  { name: "Grace", email: "grace@example.com", role: "User" },
+  { name: "Hank", email: "hank@example.com", role: "Admin" },
+  { name: "Ivy", email: "ivy@example.com", role: "User" },
+  { name: "Jack", email: "jack@example.com", role: "Moderator" },
+];
+
+function createInstance(overrides: Record<string, any> = {}) {
+  let renderedData: any[] = [];
+  const renderFn = (data: any[]) => {
+    renderedData = data;
+  };
+
+  const table = new EasyTables({
+    clientEnabled: true,
+    data: JSON.parse(JSON.stringify(sampleData)),
+    client: { limit: 10, perPage: 3 },
+    renderFunction: renderFn,
+    ...overrides,
+  });
+
+  return { table, getRenderedData: () => renderedData };
+}
+
+// ---------------------------------------------------------------------------
+// 1. Constructor & Initialization
+// ---------------------------------------------------------------------------
+describe("Constructor & Initialization", () => {
+  it("creates an instance with default options", () => {
+    const table = new EasyTables({ clientEnabled: true });
+    expect(table).toBeInstanceOf(EasyTables);
+    expect(table.getCurrentPage()).toBe(1);
+  });
+
+  it("creates an instance with custom data", async () => {
+    const { table } = createInstance();
+    await flushPromises();
+    expect(table.getRawData()).toHaveLength(sampleData.length);
+  });
+
+  it("creates an instance with custom perPage", async () => {
+    const { getRenderedData } = createInstance({
+      client: { limit: 10, perPage: 5 },
+    });
+    await flushPromises();
+    // With perPage=5, the first page should have 5 items
+    expect(getRenderedData()).toHaveLength(5);
+  });
+
+  it("creates an instance with renderFunction that gets called", async () => {
+    const renderFn = vi.fn();
+    new EasyTables({
+      clientEnabled: true,
+      data: JSON.parse(JSON.stringify(sampleData)),
+      client: { limit: 10, perPage: 3 },
+      renderFunction: renderFn,
+    });
+    await flushPromises();
+    expect(renderFn).toHaveBeenCalled();
+    expect(renderFn).toHaveBeenCalledWith(expect.any(Array));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. Pagination
+// ---------------------------------------------------------------------------
+describe("Pagination", () => {
+  it("getCurrentPage() returns 1 initially", () => {
+    const { table } = createInstance();
+    expect(table.getCurrentPage()).toBe(1);
+  });
+
+  it("getTotalPages() calculates correctly (10 items, 3 per page = 4 pages)", () => {
+    const { table } = createInstance();
+    // Math.ceil(10 / 3) === 4
+    expect(table.getTotalPages()).toBe(4);
+  });
+
+  it("nextPage() increments current page", () => {
+    const { table } = createInstance();
+    table.nextPage();
+    expect(table.getCurrentPage()).toBe(2);
+  });
+
+  it("nextPage() does not go beyond total pages", () => {
+    const { table } = createInstance();
+    const totalPages = table.getTotalPages();
+    // Go beyond total pages
+    for (let i = 0; i < totalPages + 5; i++) {
+      table.nextPage();
+    }
+    expect(table.getCurrentPage()).toBe(totalPages);
+  });
+
+  it("prevPage() decrements current page", () => {
+    const { table } = createInstance();
+    table.nextPage();
+    table.nextPage();
+    expect(table.getCurrentPage()).toBe(3);
+    table.prevPage();
+    expect(table.getCurrentPage()).toBe(2);
+  });
+
+  it("prevPage() does not go below page 1", () => {
+    const { table } = createInstance();
+    table.prevPage();
+    table.prevPage();
+    table.prevPage();
+    expect(table.getCurrentPage()).toBe(1);
+  });
+
+  it("goToPage() jumps to specific page", () => {
+    const { table } = createInstance();
+    table.goToPage(3);
+    expect(table.getCurrentPage()).toBe(3);
+  });
+
+  it("goToPage() ignores invalid page numbers (0, negative, beyond total)", () => {
+    const { table } = createInstance();
+    const totalPages = table.getTotalPages();
+
+    table.goToPage(0);
+    expect(table.getCurrentPage()).toBe(1);
+
+    table.goToPage(-1);
+    expect(table.getCurrentPage()).toBe(1);
+
+    table.goToPage(totalPages + 1);
+    expect(table.getCurrentPage()).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Search
+// ---------------------------------------------------------------------------
+describe("Search", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("setSearchDebounced triggers search after delay", async () => {
+    const { table, getRenderedData } = createInstance();
+    // Flush the constructor's async updateTable call
+    await vi.advanceTimersByTimeAsync(0);
+    const initialData = [...getRenderedData()];
+
+    table.setSearchDebounced("Alice");
+    // Before debounce fires the data should remain unchanged
+    expect(getRenderedData()).toEqual(initialData);
+
+    // Fire the debounce timer AND flush the resulting async updateTable
+    await vi.advanceTimersByTimeAsync(300);
+
+    // After debounce fires the rendered data should be filtered
+    expect(getRenderedData().length).toBeLessThan(sampleData.length);
+  });
+
+  it("search filters data by string match (case-insensitive)", async () => {
+    const { table, getRenderedData } = createInstance();
+    await vi.advanceTimersByTimeAsync(0);
+
+    table.setSearchDebounced("alice");
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(getRenderedData()).toHaveLength(1);
+    expect(getRenderedData()[0]).toMatchObject({ name: "Alice" });
+  });
+
+  it("search resets to page 1", async () => {
+    const { table } = createInstance();
+    await vi.advanceTimersByTimeAsync(0);
+
+    table.nextPage();
+    table.nextPage();
+    expect(table.getCurrentPage()).toBe(3);
+
+    table.setSearchDebounced("User");
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(table.getCurrentPage()).toBe(1);
+  });
+
+  it("clearing search restores all data", async () => {
+    const { table, getRenderedData } = createInstance();
+    await vi.advanceTimersByTimeAsync(0);
+    const initialData = [...getRenderedData()];
+
+    // First apply a search
+    table.setSearchDebounced("Alice");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(getRenderedData()).toHaveLength(1);
+
+    // Clear the search
+    table.setSearchDebounced("");
+    await vi.advanceTimersByTimeAsync(300);
+
+    // Should go back to paginated mode showing perPage items
+    expect(getRenderedData()).toEqual(initialData);
+    expect(table.getTotalPages()).toBe(4);
+  });
+
+  it("search works on object data (array of objects)", async () => {
+    const { table, getRenderedData } = createInstance();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Search by email
+    table.setSearchDebounced("bob@example.com");
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(getRenderedData()).toHaveLength(1);
+    expect(getRenderedData()[0]).toMatchObject({
+      name: "Bob",
+      email: "bob@example.com",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Sorting
+// ---------------------------------------------------------------------------
+describe("Sorting", () => {
+  it('sortData("name", "asc") sorts ascending', async () => {
+    const { table, getRenderedData } = createInstance();
+
+    table.sortData("name", "asc");
+    await flushPromises();
+
+    const names = getRenderedData().map((item: any) => item.name);
+    expect(names.length).toBeGreaterThan(0);
+    const sorted = [...names].sort((a, b) => a.localeCompare(b));
+    expect(names).toEqual(sorted);
+  });
+
+  it('sortData("name", "desc") sorts descending', async () => {
+    const { table, getRenderedData } = createInstance();
+
+    table.sortData("name", "desc");
+    await flushPromises();
+
+    const names = getRenderedData().map((item: any) => item.name);
+    expect(names.length).toBeGreaterThan(0);
+    const sorted = [...names].sort((a, b) => b.localeCompare(a));
+    expect(names).toEqual(sorted);
+  });
+
+  it("sort handles mixed case strings", async () => {
+    const mixedData = [
+      { name: "banana", value: 1 },
+      { name: "Apple", value: 2 },
+      { name: "cherry", value: 3 },
+      { name: "Apricot", value: 4 },
+    ];
+
+    let rendered: any[] = [];
+    const table = new EasyTables({
+      clientEnabled: true,
+      data: JSON.parse(JSON.stringify(mixedData)),
+      client: { limit: 10, perPage: 10 },
+      renderFunction: (data: any[]) => {
+        rendered = data;
+      },
+    });
+
+    table.sortData("name", "asc");
+    await flushPromises();
+
+    const names = rendered.map((item: any) => item.name);
+    expect(names.length).toBeGreaterThan(0);
+    // The sort uppercases strings for comparison, so case-insensitive ordering
+    const sorted = [...names].sort((a, b) =>
+      a.toUpperCase().localeCompare(b.toUpperCase())
+    );
+    expect(names).toEqual(sorted);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Per Page
+// ---------------------------------------------------------------------------
+describe("Per Page", () => {
+  it("setPerPage() changes items per page", async () => {
+    const { table, getRenderedData } = createInstance();
+    await flushPromises();
+
+    // Default perPage is 3, so first page has 3 items
+    expect(getRenderedData()).toHaveLength(3);
+
+    table.setPerPage(5);
+    await flushPromises();
+
+    expect(getRenderedData()).toHaveLength(5);
+  });
+
+  it("setPerPage() resets to page 1", async () => {
+    const { table } = createInstance();
+    await flushPromises();
+
+    table.nextPage();
+    table.nextPage();
+    expect(table.getCurrentPage()).toBe(3);
+
+    table.setPerPage(5);
+    await flushPromises();
+
+    expect(table.getCurrentPage()).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. Data Info
+// ---------------------------------------------------------------------------
+describe("Data Info", () => {
+  it("getShowingInfo() returns correct string for first page", () => {
+    const { table } = createInstance();
+    const info = table.getShowingInfo();
+
+    // perPage is 3, 10 items total, page 1 → "Showing 1 to 3 of 10 items ."
+    expect(info).toContain("Showing 1 to 3 of 10 items");
+  });
+
+  it("getShowingInfo() returns correct string for last page with partial items", () => {
+    const { table } = createInstance();
+
+    // Go to last page (page 4 with 10 items / 3 perPage)
+    table.goToPage(4);
+
+    const info = table.getShowingInfo();
+    // Page 4: startIndex = 10, endIndex = min(12, 10) = 10
+    // "Showing 10 to 10 of 10 items ."
+    expect(info).toContain("Showing 10 to 10 of 10 items");
+  });
+
+  it("getShowingInfo() includes filter info when searching", async () => {
+    vi.useFakeTimers();
+
+    const { table } = createInstance();
+
+    table.setSearchDebounced("Admin");
+    await vi.advanceTimersByTimeAsync(300);
+
+    const info = table.getShowingInfo();
+    expect(info).toContain("filtered from");
+    expect(info).toContain("total items");
+
+    vi.useRealTimers();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Data Management
+// ---------------------------------------------------------------------------
+describe("Data Management", () => {
+  it("getRawData() returns a copy of the data", () => {
+    const { table } = createInstance();
+
+    const rawData = table.getRawData();
+    expect(rawData).toHaveLength(sampleData.length);
+    expect(rawData).toEqual(sampleData);
+
+    // Modifying the returned array should NOT affect the internal data
+    rawData.push({ name: "Extra", email: "extra@example.com", role: "User" });
+    expect(table.getRawData()).toHaveLength(sampleData.length);
+  });
+
+  it("setData() replaces the data and resets page", async () => {
+    const { table, getRenderedData } = createInstance();
+    await flushPromises();
+
+    table.nextPage();
+    expect(table.getCurrentPage()).toBe(2);
+
+    const newData = [
+      { name: "Xena", email: "xena@example.com", role: "Warrior" },
+      { name: "Yuri", email: "yuri@example.com", role: "Cosmonaut" },
+    ];
+
+    table.setData(newData);
+    await flushPromises();
+
+    expect(table.getCurrentPage()).toBe(1);
+    expect(table.getRawData()).toHaveLength(2);
+    expect(getRenderedData()).toHaveLength(2);
+    expect(getRenderedData()[0]).toMatchObject({ name: "Xena" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Plugin System
+// ---------------------------------------------------------------------------
+describe("Plugin System", () => {
+  it("registerPlugin() adds plugin", () => {
+    const { table } = createInstance();
+
+    const plugin = {
+      name: "uppercase",
+      field: "name",
+      transform: (data: any) => String(data).toUpperCase(),
+    };
+
+    // Should not throw
+    expect(() => table.registerPlugin(plugin)).not.toThrow();
+
+    // Register a second plugin to ensure accumulation
+    const plugin2 = {
+      name: "lowercase",
+      field: "email",
+      transform: (data: any) => String(data).toLowerCase(),
+    };
+
+    expect(() => table.registerPlugin(plugin2)).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Destroy
+// ---------------------------------------------------------------------------
+describe("Destroy", () => {
+  it("destroy() cleans up data", () => {
+    const { table } = createInstance();
+
+    expect(table.getRawData()).toHaveLength(sampleData.length);
+
+    table.destroy();
+
+    expect(table.getRawData()).toHaveLength(0);
+  });
+});

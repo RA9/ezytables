@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EzyTables — Minimalistic Reactive Data Tables for JavaScript</title>
+  <meta name="description" content="A zero-dependency, lightweight JavaScript/TypeScript library for creating reactive data tables with sorting, searching, and pagination." />
+  <meta name="theme-color" content="#4F46E5" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='10' y='20' width='80' height='60' rx='8' fill='%234F46E5'/><line x1='10' y1='42' x2='90' y2='42' stroke='white' stroke-width='3'/><line x1='38' y1='20' x2='38' y2='80' stroke='white' stroke-width='2'/><line x1='64' y1='20' x2='64' y2='80' stroke='white' stroke-width='2'/><line x1='10' y1='58' x2='90' y2='58' stroke='white' stroke-width='2' opacity='.5'/></svg>" />
+
+  <style>
+    /* ===== CSS Variables ===== */
+    :root {
+      --primary: #4F46E5;
+      --primary-light: #6366F1;
+      --primary-dark: #3730A3;
+      --primary-glow: rgba(99, 102, 241, 0.35);
+      --accent: #06B6D4;
+      --accent-light: #22D3EE;
+      --surface: #ffffff;
+      --surface-alt: #F8FAFC;
+      --surface-border: #E2E8F0;
+      --text: #0F172A;
+      --text-secondary: #475569;
+      --text-muted: #94A3B8;
+      --hero-bg: #0F0B2E;
+      --hero-surface: rgba(255,255,255,0.06);
+      --code-bg: #1E1B4B;
+      --code-surface: #0F0B2E;
+      --success: #10B981;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+      --shadow-md: 0 4px 20px rgba(0,0,0,.06), 0 2px 6px rgba(0,0,0,.04);
+      --shadow-lg: 0 10px 40px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.04);
+      --max-w: 1140px;
+    }
+
+    /* ===== Reset ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    body {
+      font-family: var(--font);
+      color: var(--text);
+      background: var(--surface);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    img { max-width: 100%; }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ===== Nav ===== */
+    .nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      background: rgba(15, 11, 46, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .nav-inner {
+      max-width: var(--max-w); margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; height: 64px;
+    }
+    .nav-logo {
+      font-weight: 800; font-size: 1.25rem; color: #fff;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .nav-logo svg { width: 28px; height: 28px; }
+    .nav-logo span { background: linear-gradient(135deg, #fff 40%, var(--accent-light)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .nav-links { display: flex; gap: 28px; align-items: center; }
+    .nav-links a { color: rgba(255,255,255,0.7); font-size: 0.875rem; font-weight: 500; transition: color .2s; }
+    .nav-links a:hover { color: #fff; text-decoration: none; }
+    .nav-gh {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.1); padding: 6px 14px; border-radius: 999px;
+      color: #fff !important; font-size: 0.8125rem; font-weight: 600;
+      transition: background .2s;
+    }
+    .nav-gh:hover { background: rgba(255,255,255,0.18); text-decoration: none !important; }
+    .nav-gh svg { width: 18px; height: 18px; }
+    .hamburger { display: none; background: none; border: none; cursor: pointer; padding: 4px; }
+    .hamburger svg { width: 28px; height: 28px; color: #fff; }
+
+    /* ===== Hero ===== */
+    .hero {
+      background: var(--hero-bg);
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99,102,241,0.3), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 60%, rgba(6,182,212,0.15), transparent);
+      padding: 160px 24px 100px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .hero-inner {
+      max-width: 780px; margin: 0 auto; position: relative; z-index: 1;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--hero-surface);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 999px; padding: 6px 18px 6px 12px;
+      font-size: 0.8125rem; font-weight: 600; color: var(--accent-light);
+      margin-bottom: 28px;
+    }
+    .hero-badge-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+    .hero h1 {
+      font-size: clamp(2.5rem, 6vw, 3.75rem);
+      font-weight: 900; line-height: 1.1; color: #fff;
+      letter-spacing: -0.03em; margin-bottom: 20px;
+    }
+    .hero h1 em {
+      font-style: normal;
+      background: linear-gradient(135deg, var(--primary-light), var(--accent-light));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .hero p {
+      font-size: 1.2rem; color: rgba(255,255,255,0.65);
+      max-width: 560px; margin: 0 auto 36px; line-height: 1.7;
+    }
+
+    /* Install box */
+    .install-box {
+      display: inline-flex; align-items: center; gap: 0;
+      background: var(--code-surface);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm);
+      overflow: hidden; margin-bottom: 36px;
+      font-family: var(--font-mono); font-size: 0.9rem;
+    }
+    .install-box code {
+      padding: 12px 18px; color: rgba(255,255,255,0.85);
+      user-select: all;
+    }
+    .install-box code span { color: var(--accent-light); }
+    .install-copy {
+      background: rgba(255,255,255,0.06); border: none; border-left: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.5); cursor: pointer; padding: 12px 14px;
+      display: flex; align-items: center; transition: background .2s, color .2s;
+    }
+    .install-copy:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .install-copy svg { width: 18px; height: 18px; }
+
+    /* CTA */
+    .hero-ctas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 28px; border-radius: var(--radius-sm);
+      font-weight: 700; font-size: 0.9375rem;
+      transition: transform .15s, box-shadow .2s, background .2s;
+      cursor: pointer; border: none; text-decoration: none !important;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary {
+      background: var(--primary); color: #fff;
+      box-shadow: 0 4px 16px rgba(79,70,229,0.4);
+    }
+    .btn-primary:hover { background: var(--primary-light); box-shadow: 0 6px 24px rgba(79,70,229,0.5); }
+    .btn-outline {
+      background: transparent; color: #fff;
+      border: 1.5px solid rgba(255,255,255,0.25);
+    }
+    .btn-outline:hover { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); }
+    .btn svg { width: 18px; height: 18px; }
+
+    /* ===== Sections ===== */
+    .section {
+      padding: 96px 24px;
+    }
+    .section-alt { background: var(--surface-alt); }
+    .section-inner { max-width: var(--max-w); margin: 0 auto; }
+    .section-header { text-align: center; margin-bottom: 56px; }
+    .section-header h2 {
+      font-size: 2rem; font-weight: 800; letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+    .section-header p { color: var(--text-secondary); font-size: 1.05rem; max-width: 540px; margin: 0 auto; }
+    .section-label {
+      display: inline-block; font-size: 0.75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--primary); margin-bottom: 10px;
+    }
+
+    /* ===== Features Grid ===== */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius); padding: 32px 28px;
+      transition: box-shadow .25s, transform .25s, border-color .25s;
+    }
+    .feature-card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-3px);
+      border-color: rgba(79,70,229,0.2);
+    }
+    .feature-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 18px; font-size: 1.3rem;
+      background: linear-gradient(135deg, rgba(79,70,229,0.1), rgba(6,182,212,0.1));
+      color: var(--primary);
+    }
+    .feature-icon svg { width: 24px; height: 24px; }
+    .feature-card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.65; }
+
+    /* ===== Code Blocks ===== */
+    .code-block {
+      background: var(--code-surface); border-radius: var(--radius);
+      overflow: hidden; border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: var(--shadow-lg);
+    }
+    .code-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 20px;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .code-dots {
+      display: flex; gap: 7px;
+    }
+    .code-dots span {
+      width: 12px; height: 12px; border-radius: 50%;
+    }
+    .code-dots span:nth-child(1) { background: #FF5F56; }
+    .code-dots span:nth-child(2) { background: #FFBD2E; }
+    .code-dots span:nth-child(3) { background: #27C93F; }
+    .code-lang {
+      font-size: 0.75rem; color: rgba(255,255,255,0.4);
+      font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .code-block pre {
+      padding: 24px; overflow-x: auto;
+      font-family: var(--font-mono); font-size: 0.85rem;
+      line-height: 1.75; color: rgba(255,255,255,0.85);
+      tab-size: 2;
+    }
+    /* Syntax colours */
+    .hl-kw { color: #C792EA; }
+    .hl-fn { color: #82AAFF; }
+    .hl-str { color: #C3E88D; }
+    .hl-num { color: #F78C6C; }
+    .hl-cm { color: #546E7A; font-style: italic; }
+    .hl-op { color: #89DDFF; }
+    .hl-type { color: #FFCB6B; }
+    .hl-tag { color: #F07178; }
+    .hl-attr { color: #C792EA; }
+    .hl-prop { color: #F07178; }
+
+    /* ===== Modes Section ===== */
+    .modes-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
+    }
+    .mode-card {
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .mode-card h3 {
+      font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;
+    }
+    .mode-card p {
+      color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 20px; line-height: 1.6;
+    }
+
+    /* ===== API Reference ===== */
+    .api-table-wrap {
+      overflow-x: auto; border-radius: var(--radius);
+      border: 1px solid var(--surface-border);
+      box-shadow: var(--shadow-sm);
+    }
+    .api-table {
+      width: 100%; border-collapse: collapse; font-size: 0.9rem;
+    }
+    .api-table thead { background: var(--surface-alt); }
+    .api-table th {
+      text-align: left; padding: 14px 20px;
+      font-weight: 700; font-size: 0.8rem;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      border-bottom: 2px solid var(--surface-border);
+    }
+    .api-table td {
+      padding: 14px 20px; border-bottom: 1px solid var(--surface-border);
+      vertical-align: top;
+    }
+    .api-table tr:last-child td { border-bottom: none; }
+    .api-table tr:hover td { background: rgba(79,70,229,0.02); }
+    .api-table code {
+      background: rgba(79,70,229,0.08); padding: 2px 8px;
+      border-radius: 4px; font-family: var(--font-mono);
+      font-size: 0.82rem; color: var(--primary-dark); white-space: nowrap;
+    }
+
+    /* ===== Footer ===== */
+    .footer {
+      background: var(--hero-bg); color: rgba(255,255,255,0.5);
+      padding: 64px 24px 40px; text-align: center;
+    }
+    .footer-inner { max-width: var(--max-w); margin: 0 auto; }
+    .footer-links {
+      display: flex; gap: 32px; justify-content: center;
+      margin-bottom: 28px; flex-wrap: wrap;
+    }
+    .footer-links a {
+      color: rgba(255,255,255,0.6); font-size: 0.9rem; font-weight: 500;
+      transition: color .2s;
+    }
+    .footer-links a:hover { color: #fff; text-decoration: none; }
+    .footer-divider {
+      border: none; border-top: 1px solid rgba(255,255,255,0.08);
+      margin-bottom: 28px;
+    }
+    .footer-copy { font-size: 0.8rem; }
+    .footer-copy a { color: var(--accent-light); }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 900px) {
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+      .modes-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .features-grid { grid-template-columns: 1fr; }
+      .nav-links { display: none; position: absolute; top: 64px; left: 0; right: 0;
+        flex-direction: column; background: rgba(15,11,46,0.97);
+        padding: 20px 24px; gap: 16px; border-bottom: 1px solid rgba(255,255,255,0.08);
+      }
+      .nav-links.open { display: flex; }
+      .hamburger { display: block; }
+      .hero { padding: 140px 20px 72px; }
+      .hero h1 { font-size: 2rem; }
+      .hero p { font-size: 1rem; }
+      .install-box { flex-direction: column; width: 100%; }
+      .install-box code { padding: 10px 14px; font-size: 0.8rem; }
+      .install-copy { border-left: none; border-top: 1px solid rgba(255,255,255,0.1); width: 100%; justify-content: center; }
+      .section { padding: 64px 16px; }
+      .section-header h2 { font-size: 1.5rem; }
+      .api-table th, .api-table td { padding: 10px 12px; }
+    }
+
+    /* ===== Misc Utilities ===== */
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+  </style>
+</head>
+<body>
+
+<!-- ===== Navigation ===== -->
+<nav class="nav" id="navbar">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="20" width="80" height="60" rx="8" fill="#6366F1"/>
+        <line x1="10" y1="42" x2="90" y2="42" stroke="white" stroke-width="3"/>
+        <line x1="38" y1="20" x2="38" y2="80" stroke="white" stroke-width="2"/>
+        <line x1="64" y1="20" x2="64" y2="80" stroke="white" stroke-width="2"/>
+        <line x1="10" y1="58" x2="90" y2="58" stroke="white" stroke-width="2" opacity=".5"/>
+      </svg>
+      <span>EzyTables</span>
+    </a>
+    <button class="hamburger" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Toggle menu">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#quickstart">Quick Start</a>
+      <a href="#modes">Usage Modes</a>
+      <a href="#plugins">Plugins</a>
+      <a href="#api">API</a>
+      <a href="https://github.com/ra9/ezytables" target="_blank" rel="noopener" class="nav-gh">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== Hero ===== -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">
+      <span class="hero-badge-dot"></span>
+      v0.11.0 &mdash; Zero Dependencies &bull; ~5KB
+    </div>
+
+    <h1>Data tables made<br><em>ridiculously easy</em></h1>
+    <p>A minimalistic JavaScript/TypeScript library for creating reactive data tables with built-in sorting, searching, and pagination. No frameworks required.</p>
+
+    <div class="install-box">
+      <code><span>$</span> npm install ezytables</code>
+      <button class="install-copy" onclick="navigator.clipboard.writeText('npm install ezytables').then(()=>{this.innerHTML='<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2.5\'><path d=\'M5 13l4 4L19 7\'/></svg>';setTimeout(()=>{this.innerHTML='<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\'><rect x=\'9\' y=\'9\' width=\'13\' height=\'13\' rx=\'2\'/><path d=\'M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1\'/></svg>';},1500)})" aria-label="Copy install command">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+      </button>
+    </div>
+
+    <div class="hero-ctas">
+      <a href="#quickstart" class="btn btn-primary">
+        Get Started
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+      <a href="https://github.com/ra9/ezytables" target="_blank" rel="noopener" class="btn btn-outline">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        View on GitHub
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Features ===== -->
+<section class="section section-alt" id="features">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="section-label">Features</span>
+      <h2>Everything you need, nothing you don't</h2>
+      <p>A carefully crafted set of features that covers real-world data table needs without the bloat.</p>
+    </div>
+
+    <div class="features-grid">
+      <!-- 1 -->
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.24 12.24a6 6 0 00-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+        </div>
+        <h3>Zero Dependencies</h3>
+        <p>No jQuery, no frameworks, no bloat. Just ~5KB of pure JavaScript that works everywhere out of the box.</p>
+      </div>
+      <!-- 2 -->
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        </div>
+        <h3>Reactive Data</h3>
+        <p>Powered by JavaScript Proxy. Mutate your data and the table updates automatically — no manual re-renders needed.</p>
+      </div>
+      <!-- 3 -->
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+        <h3>Built-in Search</h3>
+        <p>Instant full-text search with configurable debounce. Filters across all columns without any extra setup.</p>
+      </div>
+      <!-- 4 -->
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5h10M11 9h7M11 13h4"/><path d="M3 4l3 3 3-3"/><path d="M3 14l3-3 3 3"/></svg>
+        </div>
+        <h3>Column Sorting</h3>
+        <p>Click-to-sort on any column, ascending or descending. Supports custom sort fields for complex data types.</p>
+      </div>
+      <!-- 5 -->
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="2" y1="15" x2="22" y2="15"/><line x1="8" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="16" y2="21"/></svg>
+        </div>
+        <h3>Pagination</h3>
+        <p>Built-in pagination with configurable page size. Navigate with <code>nextPage()</code> / <code>prevPage()</code> and track state easily.</p>
+      </div>
+      <!-- 6 -->
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <h3>Plugin System</h3>
+        <p>Transform cell data with plugins. Format dates, currency, badges — anything — with a simple transform function.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Quick Start ===== -->
+<section class="section" id="quickstart">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="section-label">Quick Start</span>
+      <h2>Up and running in minutes</h2>
+      <p>Install via npm or load from a CDN, then create your first reactive table.</p>
+    </div>
+
+    <div style="max-width: 780px; margin: 0 auto;">
+      <!-- Install options -->
+      <div style="display: flex; gap: 12px; margin-bottom: 8px; flex-wrap: wrap;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); background: var(--surface-alt); border: 1px solid var(--surface-border); padding: 4px 12px; border-radius: 999px;">npm</span>
+        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); background: var(--surface-alt); border: 1px solid var(--surface-border); padding: 4px 12px; border-radius: 999px;">CDN</span>
+      </div>
+      <div class="code-block" style="margin-bottom: 40px;">
+        <div class="code-header">
+          <div class="code-dots"><span></span><span></span><span></span></div>
+          <span class="code-lang">bash</span>
+        </div>
+        <pre><span class="hl-cm"># Install with npm</span>
+npm install ezytables
+
+<span class="hl-cm"># Or load directly from a CDN</span>
+<span class="hl-cm"># &lt;script type="module" src="https://esm.sh/ezytables"&gt;&lt;/script&gt;</span></pre>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dots"><span></span><span></span><span></span></div>
+          <span class="code-lang">javascript</span>
+        </div>
+        <pre><span class="hl-kw">import</span> { <span class="hl-type">EzyTables</span> } <span class="hl-kw">from</span> <span class="hl-str">'ezytables'</span>;
+
+<span class="hl-kw">const</span> data = [
+  { <span class="hl-prop">name</span>: <span class="hl-str">'Alice Johnson'</span>,  <span class="hl-prop">role</span>: <span class="hl-str">'Engineer'</span>,  <span class="hl-prop">status</span>: <span class="hl-str">'Active'</span>  },
+  { <span class="hl-prop">name</span>: <span class="hl-str">'Bob Smith'</span>,      <span class="hl-prop">role</span>: <span class="hl-str">'Designer'</span>,  <span class="hl-prop">status</span>: <span class="hl-str">'Active'</span>  },
+  { <span class="hl-prop">name</span>: <span class="hl-str">'Carol Davis'</span>,    <span class="hl-prop">role</span>: <span class="hl-str">'Manager'</span>,   <span class="hl-prop">status</span>: <span class="hl-str">'Away'</span>    },
+  { <span class="hl-prop">name</span>: <span class="hl-str">'Dan Wilson'</span>,     <span class="hl-prop">role</span>: <span class="hl-str">'Engineer'</span>,  <span class="hl-prop">status</span>: <span class="hl-str">'Active'</span>  },
+];
+
+<span class="hl-kw">const</span> table = <span class="hl-kw">new</span> <span class="hl-fn">EzyTables</span>({
+  <span class="hl-prop">data</span>,
+  <span class="hl-prop">clientEnabled</span>: <span class="hl-num">true</span>,
+  <span class="hl-prop">client</span>: { <span class="hl-prop">limit</span>: <span class="hl-num">100</span>, <span class="hl-prop">perPage</span>: <span class="hl-num">10</span> },
+  <span class="hl-prop">columns</span>: [
+    { <span class="hl-prop">name</span>: <span class="hl-str">'name'</span>,   <span class="hl-prop">label</span>: <span class="hl-str">'Name'</span>   },
+    { <span class="hl-prop">name</span>: <span class="hl-str">'role'</span>,   <span class="hl-prop">label</span>: <span class="hl-str">'Role'</span>   },
+    { <span class="hl-prop">name</span>: <span class="hl-str">'status'</span>, <span class="hl-prop">label</span>: <span class="hl-str">'Status'</span> },
+  ],
+  <span class="hl-prop">target</span>: <span class="hl-str">'#my-table'</span>,
+});
+
+<span class="hl-cm">// Search with debounce</span>
+searchInput.<span class="hl-fn">addEventListener</span>(<span class="hl-str">'input'</span>, (<span class="hl-type">e</span>) <span class="hl-op">=></span> {
+  table.<span class="hl-fn">setSearchDebounced</span>(e.target.value);
+});
+
+<span class="hl-cm">// Sort by column</span>
+table.<span class="hl-fn">sortData</span>(<span class="hl-str">'name'</span>, <span class="hl-str">'asc'</span>);
+
+<span class="hl-cm">// Pagination</span>
+table.<span class="hl-fn">nextPage</span>();
+console.<span class="hl-fn">log</span>(table.<span class="hl-fn">getShowingInfo</span>()); <span class="hl-cm">// "Showing 1 to 10 of 50 items"</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Usage Modes ===== -->
+<section class="section section-alt" id="modes">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="section-label">Usage Modes</span>
+      <h2>Two ways to render your tables</h2>
+      <p>Use a declarative target selector or bring your own render function for full control.</p>
+    </div>
+
+    <div class="modes-grid">
+      <!-- Target Mode -->
+      <div class="mode-card">
+        <h3>🎯 Target Table Mode</h3>
+        <p>Point EzyTables at a DOM element and it builds the entire table for you — header, body, pagination, search, and all.</p>
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <span class="code-lang">javascript</span>
+          </div>
+          <pre><span class="hl-kw">const</span> table = <span class="hl-kw">new</span> <span class="hl-fn">EzyTables</span>({
+  <span class="hl-prop">data</span>: myData,
+  <span class="hl-prop">clientEnabled</span>: <span class="hl-num">true</span>,
+  <span class="hl-prop">client</span>: { <span class="hl-prop">limit</span>: <span class="hl-num">100</span>, <span class="hl-prop">perPage</span>: <span class="hl-num">5</span> },
+  <span class="hl-prop">target</span>: <span class="hl-str">'#my-table'</span>,
+  <span class="hl-prop">columns</span>: [
+    { <span class="hl-prop">name</span>: <span class="hl-str">'name'</span>,  <span class="hl-prop">label</span>: <span class="hl-str">'Name'</span>  },
+    { <span class="hl-prop">name</span>: <span class="hl-str">'email'</span>, <span class="hl-prop">label</span>: <span class="hl-str">'Email'</span> },
+  ],
+});
+
+<span class="hl-cm">// That's it! EzyTables handles</span>
+<span class="hl-cm">// the full table UI for you.</span></pre>
+        </div>
+      </div>
+
+      <!-- Render Function Mode -->
+      <div class="mode-card">
+        <h3>🎨 Render Function Mode</h3>
+        <p>Take full control of rendering. EzyTables manages the data pipeline; you decide how it looks on screen.</p>
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <span class="code-lang">javascript</span>
+          </div>
+          <pre><span class="hl-kw">const</span> table = <span class="hl-kw">new</span> <span class="hl-fn">EzyTables</span>({
+  <span class="hl-prop">data</span>: myData,
+  <span class="hl-prop">clientEnabled</span>: <span class="hl-num">true</span>,
+  <span class="hl-prop">client</span>: { <span class="hl-prop">limit</span>: <span class="hl-num">100</span>, <span class="hl-prop">perPage</span>: <span class="hl-num">5</span> },
+  <span class="hl-prop">renderFunction</span>: (rows) <span class="hl-op">=></span> {
+    <span class="hl-kw">const</span> tbody = document
+      .<span class="hl-fn">querySelector</span>(<span class="hl-str">'#tb tbody'</span>);
+    tbody.innerHTML = rows.<span class="hl-fn">map</span>(r <span class="hl-op">=></span>
+      <span class="hl-str">`&lt;tr&gt;&lt;td&gt;${r.name}&lt;/td&gt;
+       &lt;td&gt;${r.email}&lt;/td&gt;&lt;/tr&gt;`</span>
+    ).<span class="hl-fn">join</span>(<span class="hl-str">''</span>);
+  },
+});</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Plugins ===== -->
+<section class="section" id="plugins">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="section-label">Plugin System</span>
+      <h2>Extend with plugins</h2>
+      <p>Transform any cell data with a simple plugin interface. Format dates, render badges, sanitize HTML — your call.</p>
+    </div>
+
+    <div style="max-width: 780px; margin: 0 auto;">
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dots"><span></span><span></span><span></span></div>
+          <span class="code-lang">javascript</span>
+        </div>
+        <pre><span class="hl-cm">// Define a plugin that transforms specific fields</span>
+<span class="hl-kw">const</span> statusBadge = {
+  <span class="hl-prop">name</span>: <span class="hl-str">'statusBadge'</span>,
+  <span class="hl-prop">field</span>: <span class="hl-str">'status'</span>,   <span class="hl-cm">// or an array: ['status', 'priority']</span>
+  <span class="hl-fn">transform</span>(value, element, parent) {
+    <span class="hl-kw">const</span> color = value === <span class="hl-str">'Active'</span> ? <span class="hl-str">'#10B981'</span> : <span class="hl-str">'#F59E0B'</span>;
+    <span class="hl-kw">return</span> <span class="hl-str">`&lt;span style="color:${color}"&gt;● ${value}&lt;/span&gt;`</span>;
+  }
+};
+
+<span class="hl-kw">const</span> dateFormat = {
+  <span class="hl-prop">name</span>: <span class="hl-str">'dateFormat'</span>,
+  <span class="hl-prop">field</span>: <span class="hl-str">'date'</span>,
+  <span class="hl-fn">transform</span>(value) {
+    <span class="hl-kw">return new</span> <span class="hl-fn">Date</span>(value).<span class="hl-fn">toLocaleDateString</span>(<span class="hl-str">'en-US'</span>);
+  }
+};
+
+<span class="hl-cm">// Register during initialization</span>
+<span class="hl-kw">const</span> table = <span class="hl-kw">new</span> <span class="hl-fn">EzyTables</span>({
+  <span class="hl-prop">data</span>, <span class="hl-prop">target</span>: <span class="hl-str">'#my-table'</span>,
+  <span class="hl-prop">plugins</span>: [statusBadge, dateFormat],
+  <span class="hl-cm">// ...other options</span>
+});
+
+<span class="hl-cm">// Or register later at runtime</span>
+table.<span class="hl-fn">registerPlugin</span>(statusBadge);</pre>
+      </div>
+
+      <div style="margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+        <div style="background: var(--surface-alt); border: 1px solid var(--surface-border); border-radius: var(--radius-sm); padding: 20px; text-align: center;">
+          <div style="font-size: 1.5rem; margin-bottom: 8px;">🔌</div>
+          <div style="font-size: 0.82rem; font-weight: 700;">Simple Interface</div>
+          <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px;">name, field, transform</div>
+        </div>
+        <div style="background: var(--surface-alt); border: 1px solid var(--surface-border); border-radius: var(--radius-sm); padding: 20px; text-align: center;">
+          <div style="font-size: 1.5rem; margin-bottom: 8px;">🎯</div>
+          <div style="font-size: 0.82rem; font-weight: 700;">Multi-Field</div>
+          <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px;">Target one or many columns</div>
+        </div>
+        <div style="background: var(--surface-alt); border: 1px solid var(--surface-border); border-radius: var(--radius-sm); padding: 20px; text-align: center;">
+          <div style="font-size: 1.5rem; margin-bottom: 8px;">⚡</div>
+          <div style="font-size: 0.82rem; font-weight: 700;">Runtime Ready</div>
+          <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px;">Register at init or later</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== API Reference ===== -->
+<section class="section section-alt" id="api">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="section-label">API Reference</span>
+      <h2>Simple, predictable API</h2>
+      <p>A handful of methods is all you need. Every method does one thing well.</p>
+    </div>
+
+    <div class="api-table-wrap">
+      <table class="api-table">
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Description</th>
+            <th>Returns</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>constructor(opts)</code></td>
+            <td>Initialize a new EzyTables instance with <code>EasyTablesOptions</code>.</td>
+            <td><code>EzyTables</code></td>
+          </tr>
+          <tr>
+            <td><code>setSearchDebounced(query)</code></td>
+            <td>Set the search query with built-in debounce. Filters across all columns.</td>
+            <td><code>void</code></td>
+          </tr>
+          <tr>
+            <td><code>sortData(column, order)</code></td>
+            <td>Sort table data by a column name. Order is <code>"asc"</code> or <code>"desc"</code>.</td>
+            <td><code>void</code></td>
+          </tr>
+          <tr>
+            <td><code>nextPage()</code></td>
+            <td>Navigate to the next page and re-render the table.</td>
+            <td><code>void</code></td>
+          </tr>
+          <tr>
+            <td><code>prevPage()</code></td>
+            <td>Navigate to the previous page and re-render the table.</td>
+            <td><code>void</code></td>
+          </tr>
+          <tr>
+            <td><code>getCurrentPage()</code></td>
+            <td>Get the current page number (1-based).</td>
+            <td><code>number</code></td>
+          </tr>
+          <tr>
+            <td><code>getTotalPages()</code></td>
+            <td>Get the total number of pages based on data size and per-page setting.</td>
+            <td><code>number</code></td>
+          </tr>
+          <tr>
+            <td><code>getShowingInfo()</code></td>
+            <td>Get a human-readable info string, e.g. <code>"Showing 1 to 10 of 50 items"</code>.</td>
+            <td><code>string</code></td>
+          </tr>
+          <tr>
+            <td><code>setPerPage(perPage)</code></td>
+            <td>Change the number of items displayed per page and reset to page 1.</td>
+            <td><code>void</code></td>
+          </tr>
+          <tr>
+            <td><code>registerPlugin(plugin)</code></td>
+            <td>Register a data transform plugin at runtime. Plugin applies to matched fields.</td>
+            <td><code>void</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Constructor Options -->
+    <div style="margin-top: 56px;">
+      <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 20px;">Constructor Options <code style="font-size: 0.85rem; font-weight: 400;">EasyTablesOptions</code></h3>
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dots"><span></span><span></span><span></span></div>
+          <span class="code-lang">TypeScript</span>
+        </div>
+        <pre><span class="hl-kw">interface</span> <span class="hl-type">EasyTablesOptions</span> {
+  <span class="hl-prop">clientEnabled</span><span class="hl-op">?:</span> <span class="hl-type">boolean</span>;        <span class="hl-cm">// Enable client-side mode (default: true)</span>
+  <span class="hl-prop">data</span><span class="hl-op">?:</span> <span class="hl-type">any</span>[];                   <span class="hl-cm">// Data source array (client-side only)</span>
+  <span class="hl-prop">server</span><span class="hl-op">?:</span> {
+    <span class="hl-prop">api_url</span>: <span class="hl-type">string</span>;              <span class="hl-cm">// API endpoint for server-side fetching</span>
+    <span class="hl-prop">headers</span><span class="hl-op">?:</span> <span class="hl-type">Record</span>&lt;<span class="hl-type">string</span>, <span class="hl-type">string</span>&gt;; <span class="hl-cm">// Optional request headers</span>
+    <span class="hl-prop">limit</span>: <span class="hl-type">number</span>;                <span class="hl-cm">// Items per server request</span>
+    <span class="hl-prop">page</span>: <span class="hl-type">number</span>;                 <span class="hl-cm">// Starting page number</span>
+    <span class="hl-prop">dataNames</span>: <span class="hl-type">string</span>;            <span class="hl-cm">// Dot-path to data in response</span>
+  };
+  <span class="hl-prop">client</span><span class="hl-op">?:</span> {
+    <span class="hl-prop">limit</span>: <span class="hl-type">number</span>;                <span class="hl-cm">// Max items to process</span>
+    <span class="hl-prop">perPage</span><span class="hl-op">?:</span> <span class="hl-type">number</span>;             <span class="hl-cm">// Items per page (default: 10)</span>
+  };
+  <span class="hl-prop">renderFunction</span><span class="hl-op">?:</span> (<span class="hl-prop">data</span>: <span class="hl-type">any</span>[]) <span class="hl-op">=></span> <span class="hl-type">void</span>; <span class="hl-cm">// Custom render callback</span>
+  <span class="hl-prop">target</spa</div>n><span class="hl-op">?:</span> <span class="hl-type">string</span>;                <span class="hl-cm">// CSS selector for auto-rendered table</span>
+  <span class="hl-prop">columns</span><span class="hl-op">?:</span> <span class="hl-type">Column</span>[];              <span class="hl-cm">// Column definitions</span>
+  <span class="hl-prop">rows</span><span class="hl-op">?:</span> <span class="hl-type">any</span>[];                    <span class="hl-cm">// Pre-defined row data</span>
+  <span class="hl-prop">classes</span><span class="hl-op">?:</span> <span class="hl-type">Classes</span>;               <span class="hl-cm">// Custom CSS class overrides</span>
+  <span class="hl-prop">plugins</span><span class="hl-op">?:</span> <span class="hl-type">Plugin</span>[];              <span class="hl-cm">// Data transform plugins</span>
+  <span class="hl-prop">hideDetails</span><span class="hl-op">?:</span> {
+    <span class="hl-prop">header</span><span class="hl-op">?:</span> <span class="hl-type">boolean</span>;             <span class="hl-cm">// Hide search/per-page header</span>
+    <span class="hl-prop">footer</span><span class="hl-op">?:</span> <span class="hl-type">boolean</span>;             <span class="hl-cm">// Hide pagination footer</span>
+  };
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CTA Banner ===== -->
+<section class="section" style="padding: 72px 24px;">
+  <div class="section-inner" style="text-align: center;">
+    <div style="background: linear-gradient(135deg, var(--primary-dark), var(--primary), #6366F1); border-radius: 20px; padding: 64px 40px; position: relative; overflow: hidden;">
+      <div style="position: absolute; inset: 0; background-image: url(&quot;data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.06'%3E%3Cpath d='M20 20h20v20H20zM0 0h20v20H0z'/%3E%3C/g%3E%3C/svg%3E&quot;);"></div>
+      <div style="position: relative; z-index: 1;">
+        <h2 style="color: #fff; font-size: 2rem; font-weight: 800; margin-bottom: 12px;">Ready to simplify your tables?</h2>
+        <p style="color: rgba(255,255,255,0.8); font-size: 1.05rem; margin-bottom: 32px; max-width: 460px; margin-left: auto; margin-right: auto;">Get started in under a minute. Zero config, zero dependencies, and your tables just work.</p>
+        <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
+          <a href="https://www.npmjs.com/package/ezytables" target="_blank" rel="noopener" class="btn" style="background: #fff; color: var(--primary-dark);">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M0 7.334v8h6.666v1.332H12v-1.332h12v-8H0zm6.666 6.664H5.334v-4H3.999v4H1.335V8.667h5.331v5.331zm4 0h-2.666V8.667h2.666v5.331zm12 0h-2.666v-4h-1.334v4h-1.335v-4h-1.334v4H18V8.667h4.666v5.331z"/></svg>
+            View on npm
+          </a>
+          <a href="https://github.com/ra9/ezytables" target="_blank" rel="noopener" class="btn" style="background: rgba(255,255,255,0.15); color: #fff; border: 1.5px solid rgba(255,255,255,0.3);">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+            Star on GitHub
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Footer ===== -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-links">
+      <a href="https://github.com/ra9/ezytables" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://www.npmjs.com/package/ezytables" target="_blank" rel="noopener">npm</a>
+      <a href="https://github.com/ra9/ezytables/blob/main/LICENSE.md" target="_blank" rel="noopener">License</a>
+      <a href="https://github.com/ra9/ezytables/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a>
+      <a href="https://github.com/ra9/ezytables/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+    </div>
+    <hr class="footer-divider" />
+    <p class="footer-copy">
+      Built with care by <a href="https://github.com/ra9" target="_blank" rel="noopener">Carlos S. Nah</a>.
+      Released under the MIT License.
+    </p>
+  </div>
+</footer>
+
+<!-- ===== Scroll-based nav shadow ===== -->
+<script>
+  const nav = document.getElementById('navbar');
+  window.addEventListener('scroll', () => {
+    nav.style.boxShadow = window.scrollY > 10
+      ? '0 4px 24px rgba(0,0,0,.15)'
+      : 'none';
+  }, { passive: true });
+
+  // Close mobile menu on link click
+  document.querySelectorAll('.nav-links a').forEach(link => {
+    link.addEventListener('click', () => {
+      document.querySelector('.nav-links').classList.remove('open');
+    });
+  });
+</script>
+</body>
+</html>

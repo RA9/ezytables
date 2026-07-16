@@ -1,4 +1,4 @@
-interface Column {
+export interface Column {
   name: string;
   label: string;
   sortable?: boolean;
@@ -11,13 +11,13 @@ interface Column {
   func?: (data: any, row: any) => string;
 }
 
-interface Plugin {
+export interface Plugin {
   name: string;
   field: string | string[];
   transform: (data: any, element?: any, parentElement?: any) => string;
 }
 
-interface Classes {
+export interface Classes {
   container?: string;
   table?: {
     container?: string;
@@ -51,7 +51,7 @@ interface Classes {
   };
 }
 
-interface EasyTablesOptions {
+export interface EasyTablesOptions {
   clientEnabled?: boolean; // Enable or disable client-side data fetching (default: true)
   data?: any[]; // Data source (only for client-side)
   server?: {
@@ -77,12 +77,12 @@ interface EasyTablesOptions {
   };
 }
 
-enum DataMode {
+export enum DataMode {
   Filtered = "filtered",
   Paginated = "paginated",
 }
 
-class EasyTables {
+export class EasyTables {
   private _data: any[] = [];
   private perPage: number;
   private currentPage: number;
@@ -109,6 +109,7 @@ class EasyTables {
   private dynamicClasses: any = {};
 
   private plugins: Plugin[] = [];
+  private _filteredDataCache: { query: string; data: any[] } | null = null;
 
   // private searchText: string = "";
 
@@ -117,12 +118,6 @@ class EasyTables {
 
   private sortField: string | null = null;
   private sortOrder: "asc" | "desc" = "asc";
-
-  // @ts-ignore
-  private client: {
-    limit: number;
-    perPage?: number; // Items per page for client-side (default: 10)
-  };
 
   constructor(opts: EasyTablesOptions) {
     this.serverEnabled =
@@ -135,6 +130,7 @@ class EasyTables {
       this._data = new Proxy(opts.data || [], {
         set: (target: any, key: string, value) => {
           target[key] = value;
+          this._filteredDataCache = null;
           if (!opts.target) {
             this.updateTable();
           }
@@ -160,11 +156,6 @@ class EasyTables {
     };
 
     this.plugins = opts?.plugins || [];
-
-    this.client = {
-      limit: opts.client?.limit || 10,
-      perPage: opts.client?.perPage || 10,
-    };
 
     this.perPage =
       this.serverEnabled && !opts.target
@@ -204,18 +195,29 @@ class EasyTables {
 
   // Private method to filter data based on search query
   private filterData(): string[] | object[] {
+    if (
+      this._filteredDataCache &&
+      this._filteredDataCache.query === this.searchQuery
+    ) {
+      return this._filteredDataCache.data;
+    }
+
     if (this._data.length === 0) return this._data;
 
+    let result: any[];
     if (Array.isArray(this._data[0]) && typeof this._data[0][0] === "string") {
       // 2-dimensional array of strings
-      return this.searchInTwoDimensionalArray(this._data, this.searchQuery);
+      result = this.searchInTwoDimensionalArray(this._data, this.searchQuery);
     } else if (typeof this._data[0] === "object") {
       // Array of objects
-      return this.searchInArrayOfObjects(this._data, this.searchQuery);
+      result = this.searchInArrayOfObjects(this._data, this.searchQuery);
     } else {
       console.error("Unsupported data structure for searching");
-      return this._data;
+      result = this._data;
     }
+
+    this._filteredDataCache = { query: this.searchQuery, data: result };
+    return result;
   }
 
   sortData(field: string, order: "asc" | "desc" = "asc"): void {
@@ -243,7 +245,7 @@ class EasyTables {
           ) {
             const dataNames = this.serverOptions.dataNames;
             for (const name of dataNames) {
-              if (actualData.hasOwnProperty(name)) {
+              if (Object.prototype.hasOwnProperty.call(actualData, name)) {
                 actualData = actualData[name];
               } else {
                 console.error(
@@ -254,14 +256,16 @@ class EasyTables {
             }
           }
 
+          this._data = actualData;
+
           if (this.dataMode === DataMode.Paginated) {
             const startIndex = (this.currentPage - 1) * this.perPage;
             const endIndex = startIndex + this.perPage;
 
-            this._data = actualData;
-
             return actualData.slice(startIndex, endIndex);
           }
+
+          return actualData;
         } else {
           console.error(
             "Error fetching data:",
@@ -282,24 +286,20 @@ class EasyTables {
       }
 
       if (this.sortField) {
+        const field = this.sortField;
+        const order = this.sortOrder;
         dataToUse.sort((a: any, b: any) => {
           if (
-            !a.hasOwnProperty(this.sortField) ||
-            !b.hasOwnProperty(this.sortField)
+            !Object.prototype.hasOwnProperty.call(a, field) ||
+            !Object.prototype.hasOwnProperty.call(b, field)
           ) {
             return 0;
           }
 
-          // @ts-ignore
           const varA =
-            this.sortField && typeof a[this.sortField] === "string"
-              ? a[this.sortField].toUpperCase()
-              : a[this.sortField || ""];
-          // @ts-ignore
+            typeof a[field] === "string" ? a[field].toUpperCase() : a[field];
           const varB =
-            this.sortField && typeof b[this.sortField] === "string"
-              ? b[this.sortField].toUpperCase()
-              : b[this.sortField || ""];
+            typeof b[field] === "string" ? b[field].toUpperCase() : b[field];
 
           let comparison = 0;
           if (varA > varB) {
@@ -307,7 +307,7 @@ class EasyTables {
           } else if (varA < varB) {
             comparison = -1;
           }
-          return this.sortOrder === "desc" ? comparison * -1 : comparison;
+          return order === "desc" ? comparison * -1 : comparison;
         });
       }
 
@@ -315,8 +315,6 @@ class EasyTables {
       const endIndex = startIndex + this.perPage;
       return dataToUse.slice(startIndex, endIndex) as any;
     }
-
-    return [];
   }
 
   private debounce(func: Function, delay: number) {
@@ -968,16 +966,22 @@ class EasyTables {
           }
 
           // Apply plugins
+          let pluginTransformed = false;
           this.plugins.forEach(plugin => {
             const fields = Array.isArray(plugin.field)
               ? plugin.field
               : [plugin.field];
             if (fields.includes(keys[index])) {
               value = plugin.transform(value, td, tr);
+              pluginTransformed = true;
             }
           });
 
-          td.innerHTML = value;
+          if (pluginTransformed) {
+            td.innerHTML = value;
+          } else {
+            td.textContent = value;
+          }
           tr.appendChild(td);
         });
 
@@ -1008,8 +1012,10 @@ class EasyTables {
   }
 
   private addStyles() {
+    if (document.getElementById("ezy-tables-styles")) return;
     // add the styles
     const style = document.createElement("style");
+    style.id = "ezy-tables-styles";
     style.innerHTML = `
       .ezy-tables-container {
         width: 100%;
@@ -1099,7 +1105,7 @@ class EasyTables {
       .ezy-tables-search-input:hover {
         background-color: #ddd;
       }
-      // add media query for mobile
+      /* add media query for mobile */
       @media only screen and (max-width: 600px) {
         .ezy-tables-container {
           overflow-x: scroll;
@@ -1109,6 +1115,58 @@ class EasyTables {
 
     // put it in the document head
     document.head.appendChild(style);
+  }
+
+  public goToPage(page: number): void {
+    if (page < 1 || page > this.getTotalPages()) return;
+    this.currentPage = page;
+    if (this.targetTable) {
+      document.querySelector(
+        `.${this.dynamicClasses["ezy-tables-container"]}`
+      )!.innerHTML = "";
+      this.initTable();
+    } else {
+      this.updateTable();
+    }
+  }
+
+  public destroy(): void {
+    if (this.targetTable) {
+      const container = document.querySelector(
+        `.${this.dynamicClasses["ezy-tables-container"]}`
+      );
+      if (container) container.remove();
+      this.targetTable.style.display = "";
+    }
+    this._data = [];
+    this._filteredDataCache = null;
+  }
+
+  public getRawData(): any[] {
+    return [...this._data];
+  }
+
+  public setData(data: any[]): void {
+    this._data = new Proxy(data, {
+      set: (target: any, key: string, value) => {
+        target[key] = value;
+        this._filteredDataCache = null;
+        if (!this.targetTable) {
+          this.updateTable();
+        }
+        return true;
+      },
+    });
+    this._filteredDataCache = null;
+    this.currentPage = 1;
+    if (this.targetTable) {
+      document.querySelector(
+        `.${this.dynamicClasses["ezy-tables-container"]}`
+      )!.innerHTML = "";
+      this.initTable();
+    } else {
+      this.updateTable();
+    }
   }
 
   private async initTable() {

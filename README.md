@@ -1,262 +1,194 @@
-# EzyTables Documentation
+# EzyTables
 
-## Table of Contents
+A minimalistic, zero-dependency JavaScript/TypeScript library for creating reactive data tables with built-in sorting, searching, and pagination.
 
-1. **Introduction**
+[![npm version](https://img.shields.io/npm/v/ezytables)](https://www.npmjs.com/package/ezytables)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
 
-   - What is EzyTables?
-   - Why Use EzyTables?
+**[📖 Documentation & Demo →](https://ra9.github.io/ezytables/)**
 
-2. **Getting Started**
+## Features
 
-   - Installation
-   - Usage
+- **Zero Dependencies** — Lightweight (~5KB), no external libraries required
+- **Reactive Data** — Uses Proxy for automatic table updates when data changes
+- **Built-in Search** — Debounced search across all fields (case-insensitive)
+- **Column Sorting** — Sort ascending or descending on any column
+- **Pagination** — Configurable items-per-page with navigation controls
+- **Plugin System** — Transform cell data with custom plugins
+- **Custom CSS Classes** — Full control over table styling
+- **Two Modes** — Works with render functions or by targeting existing HTML tables
+- **TypeScript** — Full type definitions included
 
-3. **API Reference**
-
-   - Constructor
-   - Filtering Data
-   - Pagination
-   - Custom Rendering
-   - Information on Displayed Items
-
-4. **How EzyTables Differs**
-   - Comparison with DataTables
-   - Lightweight and Minimalistic
-
-## 1. Introduction
-
-### What is EzyTables?
-
-**EzyTables** is a minimalistic JavaScript library for creating reactive data tables with built-in sorting, searching,
-and pagination capabilities. It provides a straightforward and customizable way to manage and display tabular data
-without requiring complex dependencies or extensive HTML wrappers.
-
-### Why Use EzyTables?
-
-- **Minimalistic**: EzyTables is designed to be lightweight, making it an excellent choice for projects where you want
-  to keep your dependencies minimal.
-
-- **Reactive Data**: It uses a Proxy to make data reactive. Any changes to your data source trigger automatic updates,
-  enabling real-time changes in your table.
-
-- **Customizable Rendering**: EzyTables allows you to define your own rendering logic, giving you full control over the
-  visual presentation of your data.
-
-- **Server-Side or Local Data**: You can use EzyTables with both server-side and local data sources, making it
-  versatile and adaptable to different use cases.
-
-## 2. Getting Started
-
-### Installation
-
-To get started with EzyTables, you need to include the library in your project. You can either download the JavaScript
-file or use a package manager like npm or yarn:
-
-```html
-<script type="module" src="https://esm.sh/ezytables"></script>
-```
+## Installation
 
 ```bash
 npm install ezytables
 ```
 
-### Usage
-
-Here's a basic example of how to create a data table with EzyTables:
+Or use via CDN:
 
 ```html
-<!doctype html>
-<html>
-  <head>
-    <title>EzyTables Example</title>
-  </head>
-  <body>
-    <div class="table-controls">
-      <label for="limitSelect">Show</label>
-      <select id="limitSelect">
-        <option value="10">10</option>
-        <option value="20">20</option>
-        <option value="50">50</option>
-      </select>
-      <label for="searchInput">Search</label>
-      <input id="searchInput" placeholder="Search..." />
-    </div>
-    <table id="myTable">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Description</th>
-          <th>Status</th>
-          <th>Date</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    <div class="pagination">
-      <button id="prevButton">Prev</button>
-      <button id="nextButton">Next</button>
-    </div>
-    <p id="paginationInfo"></p>
-
-    <script type="module">
-      import { EzyTables } from "https://esm.sh/ezytables";
-
-      const data = [
-        {
-          name: "John Brown",
-          description:
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec auctor, nisl eget ultricies aliquam, nunc nisl aliquet nunc, vitae aliquam nisl nunc eu nisi. Sed vitae nisl eget nisl aliquam aliquet. Sed vitae nisl eget nisl aliquam aliquet.",
-          status: "Active",
-          date: "2020-01-01",
-        },
-        {
-          name: "Jane Abram",
-          description:
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec auctor, nisl eget ultricies aliquam, nunc nisl aliquet nunc, vitae aliquam nisl nunc eu nisi. Sed vitae nisl eget nisl aliquam aliquet. Sed vitae nisl eget nisl aliquam aliquet.",
-          status: "Active",
-          date: "2020-01-01",
-        },
-        {
-          name: "Sam Smith",
-          description:
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec auctor, nisl eget ultricies aliquam, nunc nisl aliquet nunc, vitae aliquam nisl nunc eu nisi. Sed vitae nisl eget nisl aliquam aliquet. Sed vitae nisl eget nisl aliquam aliquet.",
-          status: "Active",
-          date: "2020-01-01",
-        },
-        {
-          name: "Ekaterina Tankova",
-          description:
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec auctor, nisl eget ultricies aliquam, nunc nisl aliquet nunc, vitae aliquam nisl nunc eu nisi. Sed vitae nisl eget nisl aliquam aliquet. Sed vitae nisl eget nisl aliquam aliquet.",
-          status: "Active",
-          date: "2020-01-01",
-        },
-        {
-          name: "Luisa Hanes",
-          description:
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec auctor, nisl eget ultricies aliquam, nunc nisl aliquet nunc, vitae aliquam nisl nunc eu nisi. Sed vitae nisl eget nisl aliquam aliquet. Sed vitae nisl eget nisl aliquam aliquet.",
-          status: "Active",
-          date: "2020-01-01",
-        },
-      ];
-
-      const customRender = data => {
-        // Replace this with your custom rendering logic
-        const tableBody = document.querySelector("#myTable tbody");
-        tableBody.innerHTML = "";
-        data.forEach(item => {
-          const row = document.createElement("tr");
-          row.innerHTML = `
-            <td>${item.name}</td>
-            <td>${item.description}</td>
-            <td>${item.status}</td>
-            <td>${item.date}</td>
-          `;
-          tableBody.appendChild(row);
-        });
-
-        // Display pagination info
-        const pageInfo = document.querySelector("#paginationInfo");
-        pageInfo.textContent = `${easyTable.getShowingInfo()}`;
-      };
-
-      const easyTable = new EzyTables({
-        data,
-        perPage: 3,
-        renderFunction: customRender,
-        clientEnabled: true,
-        client: {
-          perPage: 3,
-        },
-      });
-
-      const searchInput = document.querySelector("#searchInput");
-      searchInput.addEventListener("input", () => {
-        easyTable.setSearchDebounced(searchInput.value);
-      });
-
-      const prevButton = document.querySelector("#prevButton");
-      prevButton.addEventListener("click", () => {
-        easyTable.prevPage();
-      });
-
-      const nextButton = document.querySelector("#nextButton");
-      nextButton.addEventListener("click", () => {
-        easyTable.nextPage();
-      });
-    </script>
-  </body>
-</html>
+<script type="module" src="https://esm.sh/ezytables"></script>
 ```
 
-This simple example demonstrates how to create a table and bind it to EzyTables, apply search functionality, and customize the rendering logic.
+## Quick Start
 
-## 3. API Reference
+### Render Function Mode
 
-EzyTables provides the following methods:
+```javascript
+import { EzyTables } from "ezytables";
 
-- `constructor(opts: EzyTablesOptions)`: Initializes the EzyTables instance.
-- `setSearchDebounced(query: string)`: Sets the search query and updates the table.
-- `sortData(column: string, order: "asc" | "desc")`: Sorts the data by the specified column and order.
-- `nextPage()`: Moves to the next page and updates the table.
-- `prevPage()`: Moves to the previous page and updates the table.
-- `getCurrentPage()`: Returns the current page number.
-- `getTotalPages()`: Returns the total number of pages.
-- `getShowingInfo()`: Returns information about the displayed items on the current page.
+const data = [
+  { name: "Alice", email: "alice@example.com", role: "Admin" },
+  { name: "Bob", email: "bob@example.com", role: "User" },
+  { name: "Charlie", email: "charlie@example.com", role: "Moderator" },
+];
 
-## 4. How EzyTables Differs
+const table = new EzyTables({
+  data,
+  clientEnabled: true,
+  client: { perPage: 10 },
+  renderFunction: (pageData) => {
+    const tbody = document.querySelector("#myTable tbody");
+    tbody.innerHTML = "";
+    pageData.forEach((item) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${item.name}</td>
+        <td>${item.email}</td>
+        <td>${item.role}</td>
+      `;
+      tbody.appendChild(row);
+    });
+  },
+});
 
-### Comparison with DataTables
+// Search
+document.querySelector("#search").addEventListener("input", (e) => {
+  table.setSearchDebounced(e.target.value);
+});
 
-EzyTables aims to be a lightweight alternative to DataTables, a popular library for creating interactive data tables.
-While DataTables offers extensive features and customization, it often comes with a larger file size and dependencies.
-In contrast, EzyTables focuses on simplicity and minimalism.
+// Pagination
+document.querySelector("#prev").addEventListener("click", () => table.prevPage());
+document.querySelector("#next").addEventListener("click", () => table.nextPage());
+```
 
-### Lightweight and Minimalistic
+### Target Table Mode
 
-EzyTables is built with simplicity in mind. It doesn't come with extensive features or external dependencies, making it
-a great choice for projects where you want a straightforward data table solution. It's well-suited for developers who
-prefer a more hands-on approach to table rendering and customization.
+Point EzyTables at an existing HTML table and it handles everything:
 
-## 5. Problem EzyTables Solves
+```javascript
+import { EzyTables } from "ezytables";
 
-**EzyTables** addresses several common problems in working with data tables:
+const table = new EzyTables({
+  target: "#myTable",
+  data: myData,
+  classes: {
+    container: "shadow rounded-lg p-4",
+    table: {
+      container: "min-w-full",
+      thead: { th: "px-3 py-3 text-left text-sm font-semibold" },
+      tbody: { td: "px-3 py-4 text-sm" },
+    },
+  },
+});
+```
 
-- **Reactivity**: EzyTables offers reactive data handling, ensuring that any changes to the underlying data source are
-  automatically reflected in the displayed table, without the need for manual updates.
+## API Reference
 
-- **Simplicity**: It simplifies the process of creating data tables, especially when you don't require an extensive
-  feature set, complex configurations, or heavy dependencies.
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `new EzyTables(options)` | `EasyTables` | Create a new table instance |
+| `setSearchDebounced(query)` | `void` | Search with 300ms debounce |
+| `sortData(field, order?)` | `void` | Sort by field (`"asc"` or `"desc"`) |
+| `nextPage()` | `void` | Go to next page |
+| `prevPage()` | `void` | Go to previous page |
+| `goToPage(page)` | `void` | Jump to a specific page |
+| `getCurrentPage()` | `number` | Get current page number |
+| `getTotalPages()` | `number` | Get total page count |
+| `getShowingInfo()` | `string` | Get display info (e.g., "Showing 1 to 10 of 50 items") |
+| `setPerPage(n)` | `void` | Change items per page |
+| `registerPlugin(plugin)` | `void` | Register a data transform plugin |
+| `setData(data)` | `void` | Replace the data source |
+| `getRawData()` | `any[]` | Get a copy of the raw data |
+| `destroy()` | `void` | Clean up and remove the table |
 
-- **Customization**: EzyTables allows developers to define their own rendering logic, giving them full control over the
-  presentation of their data.
+## Plugins
 
-- **Versatility**: It can be used with both server-side and local data sources, making it a versatile option for various
-  projects.
+Transform cell data before rendering:
 
-## Conclusion
+```javascript
+const datePlugin = {
+  name: "dateFormat",
+  field: "date",
+  transform: (value) => {
+    return new Date(value).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  },
+};
 
-**EzyTables** is a minimalist
+const table = new EzyTables({
+  data: myData,
+  plugins: [datePlugin],
+  target: "#myTable",
+});
+```
 
-data table library designed for simplicity, reactivity, and customization. It offers a lightweight and straightforward
-way to create reactive data tables without the need for extensive dependencies or complex configurations. If you're
-looking for a minimalistic solution to display and manage tabular data, EzyTables might be the right choice for your
-project.
+## Constructor Options
 
-For more detailed information and advanced use cases, please refer to the official EzyTables documentation or explore
-the library's source code.
+```typescript
+interface EasyTablesOptions {
+  clientEnabled?: boolean;       // Enable client-side mode (default: true)
+  data?: any[];                  // Data source array
+  target?: string;               // CSS selector for existing table
+  renderFunction?: (data) => void; // Custom render callback
+  client?: {
+    limit: number;
+    perPage?: number;            // Items per page (default: 10)
+  };
+  server?: {
+    api_url: string;
+    headers?: Record<string, string>;
+    limit: number;
+    page: number;
+    dataNames: string;           // Dot-separated path to data in response
+  };
+  columns?: Column[];
+  classes?: Classes;             // CSS class overrides
+  plugins?: Plugin[];            // Data transform plugins
+  hideDetails?: {
+    header?: boolean;            // Hide search/per-page controls
+    footer?: boolean;            // Hide pagination footer
+  };
+}
+```
 
-## 5. Roadmap
+## Development
 
-Here are some of the features and improvements we're planning to add to EzyTables in the future:
+```bash
+# Install dependencies
+npm install
 
-- **Server-side rendering support**: To improve performance for large data sets.
-- **Additional customization options**: To give developers even more control over the look and feel of their tables.
-- **Improved accessibility**: To make EzyTables more user-friendly for people with disabilities.
-- **Integration with popular frameworks**: To make it easier to use EzyTables in projects that use frameworks like React, Vue, and Angular.
+# Start dev server
+npm run dev
 
-Please note that this roadmap is subject to change based on user feedback and the needs of our community.
+# Run tests
+npm test
 
-### About the Author
+# Run tests with coverage
+npm run test:coverage
 
-[Carlos S. Nah](http://github.com/ra9) is a software engineer and writer based in Monrovia. He is the author of EzyTables, a minimalist data table library for JavaScript. He enjoys writing about software development, web development, and technology.
+# Build for production
+npm run build
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+[MIT](LICENSE.md) © [Carlos S. Nah](https://github.com/ra9)

@@ -1,6 +1,6 @@
 {
   "name": "ezytables",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "main": "./dist/ezytables.cjs",
   "module": "./dist/ezytables.mjs",
   "exports": {
@@ -31,8 +31,12 @@
     "format:styles": "stylelint ./**/*.{css,scss} --fix",
     "format": "npm run format:scripts && npm run format:styles",
     "prepare": "husky install && husky set .husky/pre-commit 'npx lint-staged' && git add .husky/pre-commit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "uninstall-husky": "npm uninstall husky --no-save && git config --unset core.hooksPath && npx rimraf .husky"
   },
+  "homepage": "https://ra9.github.io/ezytables/",
   "devDependencies": {
     "@types/jsdom": "^21.1.1",
     "@types/node": "^20.4.9",
@@ -44,6 +48,7 @@
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.0",
     "husky": "^8.0.3",
+    "jsdom": "^29.1.1",
     "lint-staged": "^13.2.3",
     "postcss": "^8.4.27",
     "postcss-scss": "^4.0.6",
