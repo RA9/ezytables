@@ -40,7 +40,7 @@
   "homepage": "https://RA9.github.io/ezytables/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/RA9/ezytables"
+    "url": "git+https://github.com/RA9/ezytables.git"
   },
   "bugs": {
     "url": "https://github.com/RA9/ezytables/issues"
