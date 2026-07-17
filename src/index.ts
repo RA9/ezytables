@@ -890,11 +890,18 @@ export class EzyTables {
 
     if (!thead) return;
 
-    columns.forEach((column: any) => {
+    columns.forEach((column: EzyTablesColumn) => {
       const th = document.createElement("th");
+      const sortField = column.sortField ?? column.name;
+      const isSorted = this.sortField === sortField;
+      const sortIndicator = isSorted
+        ? this.sortOrder === "asc"
+          ? " ▲"
+          : " ▼"
+        : "";
       th.setAttribute("data-name", column.name);
       th.setAttribute("data-label", column.label);
-      th.innerHTML = column.label;
+      th.innerHTML = `${column.label}${sortIndicator}`;
 
       // apply column width
       if (column.width) {
@@ -911,20 +918,30 @@ export class EzyTables {
       if (column.sortable) {
         th.style.cursor = "pointer";
         th.setAttribute("data-sortable", "true");
-        const sortKey: string = column.sortField ?? column.name;
-        th.addEventListener("click", () => {
-          const newOrder: "asc" | "desc" =
-            this.sortField === sortKey && this.sortOrder === "asc"
-              ? "desc"
-              : "asc";
-          this.sortData(sortKey, newOrder);
-        });
       }
-
       // add th classes if exists
       if (this.htmlClasses?.table?.thead?.th) {
         const classes = this.htmlClasses.table.thead.th.split(" ");
         th.classList.add(...classes);
+      }
+
+      if (column.sortable) {
+        th.classList.add("ezy-tables-sortable");
+        th.setAttribute(
+          "aria-sort",
+          isSorted
+            ? this.sortOrder === "asc"
+              ? "ascending"
+              : "descending"
+            : "none"
+        );
+        th.addEventListener("click", () => {
+          const nextOrder =
+            this.sortField === sortField && this.sortOrder === "asc"
+              ? "desc"
+              : "asc";
+          this.sortData(sortField, nextOrder);
+        });
       }
 
       thead.appendChild(th);
@@ -1078,6 +1095,9 @@ export class EzyTables {
         border: 1px solid #ddd;
         padding: 8px;
         text-align: left;
+      }
+      .ezy-tables thead th.ezy-tables-sortable {
+        cursor: pointer;
       }
       .ezy-tables tbody td {
         border: 1px solid #ddd;
