@@ -542,6 +542,52 @@ describe("Destroy", () => {
 
     expect(table.getRawData()).toHaveLength(0);
   });
+
+  it("destroy() aborts target-table DOM control listeners", async () => {
+    const addListenerSpy = vi.spyOn(EventTarget.prototype, "addEventListener");
+    try {
+      const { table } = createTargetTableInstance();
+      await flushPromises();
+
+      const trackedSignals: AbortSignal[] = [];
+      const trackedTypes = new Set(["input", "change", "click"]);
+
+      addListenerSpy.mock.calls.forEach((call, index) => {
+        const [type, _listener, options] = call;
+        const target = addListenerSpy.mock.instances[index];
+
+        if (
+          !(target instanceof HTMLElement) ||
+          !trackedTypes.has(String(type))
+        ) {
+          return;
+        }
+
+        const isTrackedControl =
+          (type === "input" &&
+            target.classList.contains("ezy-tables-search-input")) ||
+          (type === "change" &&
+            target.classList.contains("ezy-tables-per-page-select")) ||
+          (type === "click" &&
+            target.classList.contains("ezy-tables-footer-button"));
+
+        if (!isTrackedControl) return;
+
+        const signal = (options as AddEventListenerOptions | undefined)?.signal;
+        expect(signal).toBeInstanceOf(AbortSignal);
+        trackedSignals.push(signal!);
+      });
+
+      expect(trackedSignals.length).toBeGreaterThan(0);
+      trackedSignals.forEach(signal => expect(signal.aborted).toBe(false));
+
+      table.destroy();
+
+      trackedSignals.forEach(signal => expect(signal.aborted).toBe(true));
+    } finally {
+      addListenerSpy.mockRestore();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
