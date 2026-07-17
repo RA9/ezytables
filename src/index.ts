@@ -1,4 +1,4 @@
-export interface Column {
+export interface EzyTablesColumn {
   name: string;
   label: string;
   sortable?: boolean;
@@ -51,7 +51,7 @@ export interface Classes {
   };
 }
 
-export interface EasyTablesOptions {
+export interface EzyTablesOptions {
   clientEnabled?: boolean; // Enable or disable client-side data fetching (default: true)
   data?: any[]; // Data source (only for client-side)
   server?: {
@@ -67,7 +67,7 @@ export interface EasyTablesOptions {
   };
   renderFunction?: (data: string[]) => void; // Custom rendering function
   target?: string; // Target element selector for custom rendering,
-  columns?: Column[]; // Column names for client-side data
+  columns?: EzyTablesColumn[]; // Column names for client-side data
   rows?: any[]; // Rows for client-side data
   classes?: Classes;
   plugins?: Plugin[];
@@ -82,7 +82,7 @@ export enum DataMode {
   Paginated = "paginated",
 }
 
-export class EasyTables {
+export class EzyTables {
   private _data: any[] = [];
   private perPage: number;
   private currentPage: number;
@@ -114,12 +114,12 @@ export class EasyTables {
   // private searchText: string = "";
 
   private targetTable: HTMLElement | null = null;
-  private columns: Column[] = [];
+  private columns: EzyTablesColumn[] = [];
 
   private sortField: string | null = null;
   private sortOrder: "asc" | "desc" = "asc";
 
-  constructor(opts: EasyTablesOptions) {
+  constructor(opts: EzyTablesOptions) {
     this.serverEnabled =
       opts.target && opts.target?.length > 0 ? false : !opts.clientEnabled;
 
@@ -483,7 +483,7 @@ export class EasyTables {
   // =============================================================
 
   // Private method to get the existing table thead element and turn it into an array of columns
-  private getTableHead(): Column[] | null {
+  private getTableHead(): EzyTablesColumn[] | null {
     if (!this.targetTable) return null;
 
     const thead = this.targetTable.querySelector("thead");
@@ -494,7 +494,7 @@ export class EasyTables {
 
     this.columns = Array.from(thead.querySelectorAll("th")).map(
       (th: HTMLElement) => {
-        const column: Column = {
+        const column: EzyTablesColumn = {
           name:
             th.getAttribute("data-name") ||
             th.innerHTML.replace(/\s/g, "-").toLowerCase(),
@@ -1182,5 +1182,3 @@ export class EasyTables {
     }
   }
 }
-
-export { EasyTables as EzyTables };
