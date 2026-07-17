@@ -118,6 +118,7 @@ export class EzyTables {
 
   private sortField: string | null = null;
   private sortOrder: "asc" | "desc" = "asc";
+  private domEventAbortController: AbortController | null = null;
 
   constructor(opts: EzyTablesOptions) {
     this.serverEnabled =
@@ -478,6 +479,26 @@ export class EzyTables {
     }
   }
 
+  private resetDomEventController(): void {
+    if (this.domEventAbortController) {
+      this.domEventAbortController.abort();
+    }
+    this.domEventAbortController = new AbortController();
+  }
+
+  private cleanupDomEventListeners(): void {
+    if (this.domEventAbortController) {
+      this.domEventAbortController.abort();
+      this.domEventAbortController = null;
+    }
+  }
+
+  private getDomEventOptions(): AddEventListenerOptions | undefined {
+    return this.domEventAbortController
+      ? { signal: this.domEventAbortController.signal }
+      : undefined;
+  }
+
   // =============================================================
   // ===================== Table Configuration =========================
   // =============================================================
@@ -592,6 +613,7 @@ export class EzyTables {
     let header;
     let footerInfo;
     let footerButtons;
+    const domEventOptions = this.getDomEventOptions();
 
     if (
       !document.querySelector(`.${this.dynamicClasses["ezy-tables"]} thead`)
@@ -720,9 +742,13 @@ export class EzyTables {
         perPageSelect.appendChild(perPageOption);
       });
 
-      perPageSelect.addEventListener("change", (e: Event) => {
-        this.setPerPage(Number((e.target as HTMLSelectElement).value));
-      });
+      perPageSelect.addEventListener(
+        "change",
+        (e: Event) => {
+          this.setPerPage(Number((e.target as HTMLSelectElement).value));
+        },
+        domEventOptions
+      );
 
       perPageLabel.appendChild(perPageLabelText);
       perPageLabel.appendChild(perPageSelect);
@@ -788,10 +814,14 @@ export class EzyTables {
         }
       }
 
-      searchInput.addEventListener("input", (e: Event) => {
-        this.setSearchDebounced((e.target as HTMLInputElement).value);
-        (e.target as HTMLInputElement).focus();
-      });
+      searchInput.addEventListener(
+        "input",
+        (e: Event) => {
+          this.setSearchDebounced((e.target as HTMLInputElement).value);
+          (e.target as HTMLInputElement).focus();
+        },
+        domEventOptions
+      );
 
       searchContainer.appendChild(searchInput);
 
@@ -842,17 +872,25 @@ export class EzyTables {
       prevButton.textContent = "Previous";
       prevButton.classList.add("ezy-tables-footer-button");
 
-      prevButton.addEventListener("click", () => {
-        this.prevPage();
-      });
+      prevButton.addEventListener(
+        "click",
+        () => {
+          this.prevPage();
+        },
+        domEventOptions
+      );
 
       const nextButton = document.createElement("button");
       nextButton.textContent = "Next";
       nextButton.classList.add("ezy-tables-footer-button");
 
-      nextButton.addEventListener("click", () => {
-        this.nextPage();
-      });
+      nextButton.addEventListener(
+        "click",
+        () => {
+          this.nextPage();
+        },
+        domEventOptions
+      );
 
       footerButtons.appendChild(prevButton);
       footerButtons.appendChild(nextButton);
@@ -889,6 +927,7 @@ export class EzyTables {
     }
 
     if (!thead) return;
+    const domEventOptions = this.getDomEventOptions();
 
     columns.forEach((column: EzyTablesColumn) => {
       const th = document.createElement("th");
@@ -935,13 +974,17 @@ export class EzyTables {
               : "descending"
             : "none"
         );
-        th.addEventListener("click", () => {
-          const nextOrder =
-            this.sortField === sortField && this.sortOrder === "asc"
-              ? "desc"
-              : "asc";
-          this.sortData(sortField, nextOrder);
-        });
+        th.addEventListener(
+          "click",
+          () => {
+            const nextOrder =
+              this.sortField === sortField && this.sortOrder === "asc"
+                ? "desc"
+                : "asc";
+            this.sortData(sortField, nextOrder);
+          },
+          domEventOptions
+        );
       }
 
       thead.appendChild(th);
@@ -1199,6 +1242,7 @@ export class EzyTables {
   }
 
   public destroy(): void {
+    this.cleanupDomEventListeners();
     if (this.targetTable) {
       const container = document.querySelector(
         `.${this.dynamicClasses["ezy-tables-container"]}`
@@ -1238,6 +1282,9 @@ export class EzyTables {
   }
 
   private async initTable() {
+    if (this.targetTable) {
+      this.resetDomEventController();
+    }
     const data = await this.getData();
 
     if (this.targetTable) {
