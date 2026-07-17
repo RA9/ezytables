@@ -5,6 +5,7 @@ All notable changes to the "ezytables" project will be documented in this file.
 ## [0.11.0] - 2026-07-16
 
 ### Added
+
 - `goToPage(page)` method for direct page navigation
 - `destroy()` method for cleanup
 - `getRawData()` method to access raw data
@@ -15,6 +16,7 @@ All notable changes to the "ezytables" project will be documented in this file.
 - Filter data caching for improved performance
 
 ### Fixed
+
 - CSS comment syntax error in injected styles
 - Duplicate style injection on re-render
 - Unreachable code in getData()
@@ -22,6 +24,7 @@ All notable changes to the "ezytables" project will be documented in this file.
 - TypeScript @ts-ignore removed with proper initialization
 
 ### Changed
+
 - Vite config modernized (module.exports → export default)
 - Removed dead code (wrappers.ts)
 
