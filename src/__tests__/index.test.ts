@@ -543,3 +543,225 @@ describe("Destroy", () => {
     expect(table.getRawData()).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 10. Column Properties (DOM rendering)
+// ---------------------------------------------------------------------------
+describe("Column Properties (DOM rendering)", () => {
+  let tableEl: HTMLTableElement;
+  let instance: EzyTables | null = null;
+
+  beforeEach(() => {
+    tableEl = document.createElement("table");
+    tableEl.id = "test-col-table";
+    document.body.appendChild(tableEl);
+  });
+
+  afterEach(() => {
+    if (instance) {
+      instance.destroy();
+      instance = null;
+    }
+    tableEl.remove();
+  });
+
+  const domData = [
+    { name: "Alice", role: "Admin" },
+    { name: "Bob", role: "User" },
+  ];
+
+  /** Returns all <th data-name> elements in the document. */
+  function getAllThs(): HTMLElement[] {
+    return Array.from(
+      document.querySelectorAll("th[data-name]")
+    ) as HTMLElement[];
+  }
+
+  /** Returns all <td> elements inside the rendered tbody. */
+  function getAllTds(): HTMLElement[] {
+    return Array.from(document.querySelectorAll("tbody td")) as HTMLElement[];
+  }
+
+  it("applies column width to <th> elements", async () => {
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: JSON.parse(JSON.stringify(domData)),
+      columns: [
+        { name: "name", label: "Name", width: "200px" },
+        { name: "role", label: "Role", width: "100px" },
+      ],
+    });
+    await flushPromises();
+
+    const allThs = getAllThs();
+    const nameTh = allThs.find(el => el.getAttribute("data-name") === "name");
+    const roleTh = allThs.find(el => el.getAttribute("data-name") === "role");
+    expect(nameTh?.style.width).toBe("200px");
+    expect(roleTh?.style.width).toBe("100px");
+  });
+
+  it("applies column classes.container to <th> elements", async () => {
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: JSON.parse(JSON.stringify(domData)),
+      columns: [
+        {
+          name: "name",
+          label: "Name",
+          classes: { container: "col-name bold" },
+        },
+        { name: "role", label: "Role" },
+      ],
+    });
+    await flushPromises();
+
+    const nameTh = getAllThs().find(
+      el => el.getAttribute("data-name") === "name"
+    );
+    expect(nameTh?.classList.contains("col-name")).toBe(true);
+    expect(nameTh?.classList.contains("bold")).toBe(true);
+  });
+
+  it("adds data-sortable attribute and pointer cursor for sortable columns", async () => {
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: JSON.parse(JSON.stringify(domData)),
+      columns: [
+        { name: "name", label: "Name", sortable: true },
+        { name: "role", label: "Role" },
+      ],
+    });
+    await flushPromises();
+
+    const allThs = getAllThs();
+    const nameTh = allThs.find(el => el.getAttribute("data-name") === "name");
+    const roleTh = allThs.find(el => el.getAttribute("data-name") === "role");
+    expect(nameTh?.getAttribute("data-sortable")).toBe("true");
+    expect(nameTh?.style.cursor).toBe("pointer");
+    expect(roleTh?.getAttribute("data-sortable")).toBeNull();
+  });
+
+  it("applies column width to <td> elements", async () => {
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: JSON.parse(JSON.stringify(domData)),
+      columns: [
+        { name: "name", label: "Name", width: "150px" },
+        { name: "role", label: "Role" },
+      ],
+    });
+    await flushPromises();
+
+    const allTds = getAllTds();
+    // Each row has 2 tds: name (index 0) and role (index 1)
+    const nameTds = allTds.filter((_, i) => i % 2 === 0);
+    nameTds.forEach(td => {
+      expect(td.style.width).toBe("150px");
+    });
+    const roleTds = allTds.filter((_, i) => i % 2 !== 0);
+    roleTds.forEach(td => {
+      expect(td.style.width).toBe("");
+    });
+  });
+
+  it("applies column classes.element to <td> elements", async () => {
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: JSON.parse(JSON.stringify(domData)),
+      columns: [
+        {
+          name: "name",
+          label: "Name",
+          classes: { element: "cell-name highlight" },
+        },
+        { name: "role", label: "Role" },
+      ],
+    });
+    await flushPromises();
+
+    const allTds = getAllTds();
+    const nameTds = allTds.filter((_, i) => i % 2 === 0);
+    nameTds.forEach(td => {
+      expect(td.classList.contains("cell-name")).toBe(true);
+      expect(td.classList.contains("highlight")).toBe(true);
+    });
+  });
+
+  it("calls column func and uses its return value as cell innerHTML", async () => {
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: JSON.parse(JSON.stringify(domData)),
+      columns: [
+        {
+          name: "name",
+          label: "Name",
+          func: (data: any) => `<strong>${data}</strong>`,
+        },
+        { name: "role", label: "Role" },
+      ],
+    });
+    await flushPromises();
+
+    const allTds = getAllTds();
+    const nameTds = allTds.filter((_, i) => i % 2 === 0);
+    expect(nameTds[0].innerHTML).toBe("<strong>Alice</strong>");
+    expect(nameTds[1].innerHTML).toBe("<strong>Bob</strong>");
+  });
+
+  it("uses sortField instead of column name when sorting via click", async () => {
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: JSON.parse(JSON.stringify(domData)),
+      columns: [
+        {
+          name: "display",
+          label: "Display",
+          sortable: true,
+          sortField: "name",
+        },
+        { name: "role", label: "Role" },
+      ],
+    });
+    await flushPromises();
+
+    const sortDataSpy = vi.spyOn(instance, "sortData");
+
+    const displayTh = getAllThs().find(
+      el => el.getAttribute("data-name") === "display"
+    );
+    expect(displayTh).toBeTruthy();
+    displayTh!.click();
+
+    expect(sortDataSpy).toHaveBeenCalledWith("name", "asc");
+  });
+
+  it("toggles sort order on repeated clicks of a sortable column", async () => {
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: JSON.parse(JSON.stringify(domData)),
+      columns: [
+        { name: "name", label: "Name", sortable: true },
+        { name: "role", label: "Role" },
+      ],
+    });
+    await flushPromises();
+
+    const sortDataSpy = vi.spyOn(instance, "sortData");
+
+    // First click → asc
+    const nameTh = getAllThs().find(
+      el => el.getAttribute("data-name") === "name"
+    );
+    expect(nameTh).toBeTruthy();
+    nameTh!.click();
+    expect(sortDataSpy).toHaveBeenLastCalledWith("name", "asc");
+
+    // After table re-renders, second click should toggle to desc
+    await flushPromises();
+    const updatedNameTh = getAllThs().find(
+      el => el.getAttribute("data-name") === "name"
+    );
+    updatedNameTh!.click();
+    expect(sortDataSpy).toHaveBeenLastCalledWith("name", "desc");
+  });
+});
