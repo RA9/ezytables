@@ -895,6 +895,32 @@ export class EzyTables {
       th.setAttribute("data-name", column.name);
       th.setAttribute("data-label", column.label);
       th.innerHTML = column.label;
+
+      // apply column width
+      if (column.width) {
+        th.style.width = column.width;
+      }
+
+      // apply column container classes
+      if (column.classes?.container) {
+        const classes = (column.classes.container as string).split(" ");
+        th.classList.add(...classes);
+      }
+
+      // apply sortable behavior
+      if (column.sortable) {
+        th.style.cursor = "pointer";
+        th.setAttribute("data-sortable", "true");
+        const sortKey: string = column.sortField ?? column.name;
+        th.addEventListener("click", () => {
+          const newOrder: "asc" | "desc" =
+            this.sortField === sortKey && this.sortOrder === "asc"
+              ? "desc"
+              : "asc";
+          this.sortData(sortKey, newOrder);
+        });
+      }
+
       // add th classes if exists
       if (this.htmlClasses?.table?.thead?.th) {
         const classes = this.htmlClasses.table.thead.th.split(" ");
@@ -965,22 +991,41 @@ export class EzyTables {
             td.setAttribute("class", classes.join(" "));
           }
 
-          // Apply plugins
-          let pluginTransformed = false;
-          this.plugins.forEach(plugin => {
-            const fields = Array.isArray(plugin.field)
-              ? plugin.field
-              : [plugin.field];
-            if (fields.includes(keys[index])) {
-              value = plugin.transform(value, td, tr);
-              pluginTransformed = true;
-            }
-          });
+          // Find matching column definition for this cell
+          const column = this.columns.find(c => c.name === keys[index]);
 
-          if (pluginTransformed) {
-            td.innerHTML = value;
+          // apply column width
+          if (column?.width) {
+            td.style.width = column.width;
+          }
+
+          // apply column element classes
+          if (column?.classes?.element) {
+            const classes = (column.classes.element as string).split(" ");
+            td.classList.add(...classes);
+          }
+
+          // apply column func (custom cell renderer) or fall back to plugins
+          if (column?.func) {
+            td.innerHTML = column.func(value, row);
           } else {
-            td.textContent = value;
+            // Apply plugins
+            let pluginTransformed = false;
+            this.plugins.forEach(plugin => {
+              const fields = Array.isArray(plugin.field)
+                ? plugin.field
+                : [plugin.field];
+              if (fields.includes(keys[index])) {
+                value = plugin.transform(value, td, tr);
+                pluginTransformed = true;
+              }
+            });
+
+            if (pluginTransformed) {
+              td.innerHTML = value;
+            } else {
+              td.textContent = value;
+            }
           }
           tr.appendChild(td);
         });
