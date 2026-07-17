@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { EasyTables } from "../index";
+import { EzyTables } from "../index";
 
 /**
  * Helper to flush pending microtasks so that the async `updateTable()` /
- * `getData()` chain inside EasyTables has time to resolve and call the
+ * `getData()` chain inside EzyTables has time to resolve and call the
  * renderFunction before we make assertions.
  */
 function flushPromises(): Promise<void> {
@@ -29,7 +29,7 @@ function createInstance(overrides: Record<string, any> = {}) {
     renderedData = data;
   };
 
-  const table = new EasyTables({
+  const table = new EzyTables({
     clientEnabled: true,
     data: JSON.parse(JSON.stringify(sampleData)),
     client: { limit: 10, perPage: 3 },
@@ -45,8 +45,8 @@ function createInstance(overrides: Record<string, any> = {}) {
 // ---------------------------------------------------------------------------
 describe("Constructor & Initialization", () => {
   it("creates an instance with default options", () => {
-    const table = new EasyTables({ clientEnabled: true });
-    expect(table).toBeInstanceOf(EasyTables);
+    const table = new EzyTables({ clientEnabled: true });
+    expect(table).toBeInstanceOf(EzyTables);
     expect(table.getCurrentPage()).toBe(1);
   });
 
@@ -67,7 +67,7 @@ describe("Constructor & Initialization", () => {
 
   it("creates an instance with renderFunction that gets called", async () => {
     const renderFn = vi.fn();
-    new EasyTables({
+    new EzyTables({
       clientEnabled: true,
       data: JSON.parse(JSON.stringify(sampleData)),
       client: { limit: 10, perPage: 3 },
@@ -274,7 +274,7 @@ describe("Sorting", () => {
     ];
 
     let rendered: any[] = [];
-    const table = new EasyTables({
+    const table = new EzyTables({
       clientEnabled: true,
       data: JSON.parse(JSON.stringify(mixedData)),
       client: { limit: 10, perPage: 10 },
