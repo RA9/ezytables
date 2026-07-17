@@ -40,6 +40,32 @@ function createInstance(overrides: Record<string, any> = {}) {
   return { table, getRenderedData: () => renderedData };
 }
 
+function createTargetTableInstance(overrides: Record<string, any> = {}) {
+  document.body.innerHTML = '<table id="target-table"></table>';
+
+  const table = new EzyTables({
+    target: "#target-table",
+    data: [
+      { name: "Charlie", email: "charlie@example.com" },
+      { name: "Alice", email: "alice@example.com" },
+      { name: "Bob", email: "bob@example.com" },
+    ],
+    columns: [
+      {
+        name: "display-name",
+        label: "Name",
+        sortable: true,
+        sortField: "name",
+      },
+      { name: "email", label: "Email" },
+    ],
+    client: { limit: 10, perPage: 10 },
+    ...overrides,
+  });
+
+  return { table };
+}
+
 // ---------------------------------------------------------------------------
 // 1. Constructor & Initialization
 // ---------------------------------------------------------------------------
@@ -293,6 +319,43 @@ describe("Sorting", () => {
       a.toUpperCase().localeCompare(b.toUpperCase())
     );
     expect(names).toEqual(sorted);
+  });
+});
+
+describe("Target Table Sorting UI", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+    document.getElementById("ezy-tables-styles")?.remove();
+  });
+
+  it("clicking a sortable header toggles target-table sorting and indicators", async () => {
+    const { table } = createTargetTableInstance();
+    await flushPromises();
+
+    const sortSpy = vi.spyOn(table, "sortData");
+    const getHeaders = () =>
+      Array.from(document.querySelectorAll(".ezy-tables th")) as HTMLElement[];
+    const getRenderedNames = () =>
+      Array.from(document.querySelectorAll(".ezy-tables tbody tr")).map(
+        row => row.children[0].textContent
+      );
+
+    expect(getHeaders()[0].textContent).toBe("Name");
+    expect(getHeaders()[1].textContent).toBe("Email");
+
+    getHeaders()[0].click();
+    await flushPromises();
+
+    expect(sortSpy).toHaveBeenNthCalledWith(1, "name", "asc");
+    expect(getHeaders()[0].textContent).toBe("Name ▲");
+    expect(getRenderedNames()).toEqual(["Alice", "Bob", "Charlie"]);
+
+    getHeaders()[0].click();
+    await flushPromises();
+
+    expect(sortSpy).toHaveBeenNthCalledWith(2, "name", "desc");
+    expect(getHeaders()[0].textContent).toBe("Name ▼");
+    expect(getRenderedNames()).toEqual(["Charlie", "Bob", "Alice"]);
   });
 });
 

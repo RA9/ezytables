@@ -890,15 +890,41 @@ export class EzyTables {
 
     if (!thead) return;
 
-    columns.forEach((column: any) => {
+    columns.forEach((column: EzyTablesColumn) => {
       const th = document.createElement("th");
+      const sortField = column.sortField || column.name;
+      const isSorted = this.sortField === sortField;
+      const sortIndicator = isSorted
+        ? this.sortOrder === "asc"
+          ? " ▲"
+          : " ▼"
+        : "";
       th.setAttribute("data-name", column.name);
       th.setAttribute("data-label", column.label);
-      th.innerHTML = column.label;
+      th.innerHTML = `${column.label}${sortIndicator}`;
       // add th classes if exists
       if (this.htmlClasses?.table?.thead?.th) {
         const classes = this.htmlClasses.table.thead.th.split(" ");
         th.classList.add(...classes);
+      }
+
+      if (column.sortable) {
+        th.style.cursor = "pointer";
+        th.setAttribute(
+          "aria-sort",
+          isSorted
+            ? this.sortOrder === "asc"
+              ? "ascending"
+              : "descending"
+            : "none"
+        );
+        th.addEventListener("click", () => {
+          const nextOrder =
+            this.sortField === sortField && this.sortOrder === "asc"
+              ? "desc"
+              : "asc";
+          this.sortData(sortField, nextOrder);
+        });
       }
 
       thead.appendChild(th);
