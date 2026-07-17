@@ -903,7 +903,7 @@ export class EzyTables {
 
       // apply column container classes
       if (column.classes?.container) {
-        const classes = (column.classes.container as string).split(" ");
+        const classes = column.classes.container.split(" ");
         th.classList.add(...classes);
       }
 
@@ -1001,11 +1001,13 @@ export class EzyTables {
 
           // apply column element classes
           if (column?.classes?.element) {
-            const classes = (column.classes.element as string).split(" ");
+            const classes = column.classes.element.split(" ");
             td.classList.add(...classes);
           }
 
-          // apply column func (custom cell renderer) or fall back to plugins
+          // apply column func (custom cell renderer) or fall back to plugins.
+          // Note: func is a developer-supplied renderer; callers are responsible
+          // for ensuring the returned HTML is safe, just as with plugin transforms.
           if (column?.func) {
             td.innerHTML = column.func(value, row);
           } else {
