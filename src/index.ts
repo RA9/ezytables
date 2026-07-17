@@ -892,7 +892,7 @@ export class EzyTables {
 
     columns.forEach((column: EzyTablesColumn) => {
       const th = document.createElement("th");
-      const sortField = column.sortField || column.name;
+      const sortField = column.sortField ?? column.name;
       const isSorted = this.sortField === sortField;
       const sortIndicator = isSorted
         ? this.sortOrder === "asc"
@@ -909,7 +909,7 @@ export class EzyTables {
       }
 
       if (column.sortable) {
-        th.style.cursor = "pointer";
+        th.classList.add("ezy-tables-sortable");
         th.setAttribute(
           "aria-sort",
           isSorted
@@ -1057,6 +1057,9 @@ export class EzyTables {
         border: 1px solid #ddd;
         padding: 8px;
         text-align: left;
+      }
+      .ezy-tables thead th.ezy-tables-sortable {
+        cursor: pointer;
       }
       .ezy-tables tbody td {
         border: 1px solid #ddd;

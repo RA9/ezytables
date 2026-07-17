@@ -357,6 +357,25 @@ describe("Target Table Sorting UI", () => {
     expect(getHeaders()[0].textContent).toBe("Name ▼");
     expect(getRenderedNames()).toEqual(["Charlie", "Bob", "Alice"]);
   });
+
+  it("falls back to column.name when sortField is not provided", async () => {
+    const { table } = createTargetTableInstance({
+      columns: [
+        { name: "name", label: "Name", sortable: true },
+        { name: "email", label: "Email" },
+      ],
+    });
+    await flushPromises();
+
+    const sortSpy = vi.spyOn(table, "sortData");
+    const nameHeader = document.querySelector(".ezy-tables th") as HTMLElement;
+
+    nameHeader.click();
+    await flushPromises();
+
+    expect(sortSpy).toHaveBeenCalledWith("name", "asc");
+    expect(nameHeader.classList.contains("ezy-tables-sortable")).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
