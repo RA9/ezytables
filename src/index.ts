@@ -143,7 +143,9 @@ export class EzyTables {
     this.hideDetails = opts.hideDetails || {};
 
     this.htmlClasses = opts.classes || {};
-    const randomId = window.crypto.getRandomValues(new Uint32Array(1))[0];
+    const randomId =
+      globalThis.crypto?.getRandomValues(new Uint32Array(1))?.[0] ??
+      Math.floor(Math.random() * 0xffffffff);
     this.dynamicClasses = {
       "ezy-tables": `ezy-tables-${randomId}`,
       "ezy-tables-container": `ezy-tables-container-${randomId}`,
