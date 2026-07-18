@@ -596,7 +596,7 @@ describe("Plugin System", () => {
           name: "html",
           field: "name",
           transform: (value: any) =>
-            `<base href="https://evil.example/"><a href="data:text/html,alert(1)" onclick="alert(1)" style="color:red"><strong>${value}</strong></a><script>alert(1)</script>`,
+            `<base href="https://evil.example/"><a href="&#x64;ata:text/html,alert(1)" onclick="alert(1)" style="color:red"><strong>${value}</strong></a><script>alert(1)</script>`,
         },
       ],
     });

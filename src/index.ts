@@ -227,11 +227,11 @@ export class EzyTables {
       });
     });
 
-    return template.innerHTML;
+    return this.serializeHTMLFragment(template.content);
   }
 
   private isUnsafeUrl(value: string): boolean {
-    const normalizedValue = value
+    const normalizedValue = this.decodeHtmlEntities(value)
       .replace(/[\u0000-\u001f\u007f-\u009f\s]+/g, "")
       .toLowerCase();
 
@@ -240,6 +240,18 @@ export class EzyTables {
       normalizedValue.startsWith("vbscript:") ||
       normalizedValue.startsWith("data:")
     );
+  }
+
+  private decodeHtmlEntities(value: string): string {
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = value;
+    return textarea.value;
+  }
+
+  private serializeHTMLFragment(fragment: DocumentFragment): string {
+    const container = document.createElement("div");
+    container.appendChild(fragment.cloneNode(true));
+    return container.innerHTML;
   }
 
   // Private method to filter data based on search query
