@@ -76,6 +76,10 @@ export interface EzyTablesOptions {
     footer?: boolean;
   };
   perPageOptions?: number[]; // Custom per-page dropdown options (default: [5, 10, 25, 50, 100])
+  onPageChange?: (page: number, totalPages: number) => void;
+  onSearch?: (query: string, resultCount: number) => void;
+  onSort?: (field: string, order: "asc" | "desc") => void;
+  onDataChange?: (newData: any[]) => void;
 }
 
 export enum DataMode {
@@ -121,6 +125,10 @@ export class EzyTables {
   private sortOrder: "asc" | "desc" = "asc";
   private domEventAbortController: AbortController | null = null;
   private perPageOptions: number[];
+  private onPageChange?: (page: number, totalPages: number) => void;
+  private onSearch?: (query: string, resultCount: number) => void;
+  private onSort?: (field: string, order: "asc" | "desc") => void;
+  private onDataChange?: (newData: any[]) => void;
 
   constructor(opts: EzyTablesOptions) {
     this.serverEnabled =
@@ -134,6 +142,9 @@ export class EzyTables {
         set: (target: any, key: string, value) => {
           target[key] = value;
           this._filteredDataCache = null;
+          if (key !== "length") {
+            this.onDataChange?.([...this._data]);
+          }
           if (!opts.target) {
             this.updateTable();
           }
@@ -160,6 +171,10 @@ export class EzyTables {
 
     this.plugins = opts?.plugins || [];
     this.perPageOptions = opts.perPageOptions || [5, 10, 25, 50, 100];
+    this.onPageChange = opts.onPageChange;
+    this.onSearch = opts.onSearch;
+    this.onSort = opts.onSort;
+    this.onDataChange = opts.onDataChange;
 
     this.perPage =
       this.serverEnabled && !opts.target
@@ -227,6 +242,7 @@ export class EzyTables {
   sortData(field: string, order: "asc" | "desc" = "asc"): void {
     this.sortField = field;
     this.sortOrder = order;
+    this.onSort?.(field, order);
     this.updateTable();
   }
 
@@ -336,6 +352,8 @@ export class EzyTables {
 
   // Set the search query
   private setSearch(query: string): void {
+    const previousPage = this.currentPage;
+    const previousTotalPages = this.getTotalPages();
     this.searchQuery = query;
     this.dataMode = DataMode.Filtered;
 
@@ -345,6 +363,13 @@ export class EzyTables {
     }
 
     this.currentPage = 1; // Reset to the first page when searching
+    this.onSearch?.(
+      this.searchQuery,
+      this.dataMode === DataMode.Filtered
+        ? this.filterData().length
+        : this._data.length
+    );
+    this.triggerPageChangeIfChanged(previousPage, previousTotalPages);
 
     if (this.targetTable) {
       // If the target is a table, re-render the table
@@ -384,8 +409,11 @@ export class EzyTables {
   }
 
   public setPerPage(perPage: number): void {
+    const previousPage = this.currentPage;
+    const previousTotalPages = this.getTotalPages();
     this.perPage = perPage;
     this.currentPage = 1; // Reset to the first page when changing the per page value
+    this.triggerPageChangeIfChanged(previousPage, previousTotalPages);
 
     if (this.targetTable) {
       // If the target is a table, re-render the table
@@ -402,6 +430,7 @@ export class EzyTables {
   nextPage(): void {
     if (this.currentPage < this.getTotalPages()) {
       this.currentPage++;
+      this.onPageChange?.(this.currentPage, this.getTotalPages());
       this.updateTable(); // Trigger re-render on next page
     }
   }
@@ -409,6 +438,7 @@ export class EzyTables {
   prevPage(): void {
     if (this.currentPage > 1) {
       this.currentPage--;
+      this.onPageChange?.(this.currentPage, this.getTotalPages());
 
       if (this.targetTable) {
         // If the target is a table, re-render the table
@@ -467,8 +497,20 @@ export class EzyTables {
     if (this.dataMode === DataMode.Filtered) {
       return this.filterData().length;
     }
-
     return this._data.length;
+  }
+
+  private triggerPageChangeIfChanged(
+    previousPage: number,
+    previousTotalPages: number
+  ): void {
+    const totalPages = this.getTotalPages();
+    if (
+      this.currentPage !== previousPage ||
+      totalPages !== previousTotalPages
+    ) {
+      this.onPageChange?.(this.currentPage, totalPages);
+    }
   }
 
   // Private method to trigger a table update and custom rendering
@@ -1236,7 +1278,11 @@ export class EzyTables {
   public goToPage(page: number): void {
     const totalPages = Math.max(1, this.getTotalPages());
     if (page < 1 || page > totalPages) return;
+    const previousPage = this.currentPage;
     this.currentPage = page;
+    if (this.currentPage !== previousPage) {
+      this.onPageChange?.(this.currentPage, this.getTotalPages());
+    }
     if (this.targetTable) {
       document.querySelector(
         `.${this.dynamicClasses["ezy-tables-container"]}`
@@ -1265,10 +1311,15 @@ export class EzyTables {
   }
 
   public setData(data: any[]): void {
+    const previousPage = this.currentPage;
+    const previousTotalPages = this.getTotalPages();
     this._data = new Proxy(data, {
       set: (target: any, key: string, value) => {
         target[key] = value;
         this._filteredDataCache = null;
+        if (key !== "length") {
+          this.onDataChange?.([...this._data]);
+        }
         if (!this.targetTable) {
           this.updateTable();
         }
@@ -1277,6 +1328,8 @@ export class EzyTables {
     });
     this._filteredDataCache = null;
     this.currentPage = 1;
+    this.onDataChange?.([...this._data]);
+    this.triggerPageChangeIfChanged(previousPage, previousTotalPages);
     if (this.targetTable) {
       document.querySelector(
         `.${this.dynamicClasses["ezy-tables-container"]}`
