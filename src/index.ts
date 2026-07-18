@@ -139,7 +139,7 @@ export class EzyTables {
       opts.clientEnabled ||
       (opts.target && opts.data && opts.data?.length > 0)
     ) {
-      this._data = this.createDataProxy(opts.data || [], () => !opts.target);
+      this._data = this.createDataProxy(opts.data || [], !opts.target);
     }
 
     this.hideDetails = opts.hideDetails || {};
@@ -512,13 +512,13 @@ export class EzyTables {
     });
   }
 
-  private createDataProxy(data: any[], shouldUpdate: () => boolean): any[] {
+  private createDataProxy(data: any[], shouldUpdate: boolean): any[] {
     return new Proxy(data, {
       set: (target: any[], key: string | symbol, value) => {
-        (target as any)[key as any] = value;
+        Reflect.set(target, key, value);
         this._filteredDataCache = null;
         this.queueDataChangeNotification();
-        if (shouldUpdate()) {
+        if (shouldUpdate) {
           this.updateTable();
         }
         return true;
@@ -1326,7 +1326,7 @@ export class EzyTables {
   public setData(data: any[]): void {
     const previousPage = this.currentPage;
     const previousTotalPages = this.getTotalPages();
-    this._data = this.createDataProxy(data, () => !this.targetTable);
+    this._data = this.createDataProxy(data, !this.targetTable);
     this._filteredDataCache = null;
     this.currentPage = 1;
     this.onDataChange?.([...this._data]);
