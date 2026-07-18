@@ -438,6 +438,33 @@ export class EzyTables {
     return Math.ceil(totalItems / this.perPage);
   }
 
+  private getTableLabel(): string {
+    if (!this.targetTable) {
+      return "EzyTables data table";
+    }
+
+    const ariaLabel = this.targetTable.getAttribute("aria-label")?.trim();
+    if (ariaLabel) {
+      return ariaLabel;
+    }
+
+    const caption = this.targetTable
+      .querySelector("caption")
+      ?.textContent?.trim();
+    if (caption) {
+      return caption;
+    }
+
+    if (this.targetTable.id) {
+      const normalizedId = this.targetTable.id.replace(/[-_]+/g, " ").trim();
+      const readableId =
+        normalizedId.charAt(0).toUpperCase() + normalizedId.slice(1);
+      return /table$/i.test(readableId) ? readableId : `${readableId} table`;
+    }
+
+    return "EzyTables data table";
+  }
+
   // Method to get information about the items being displayed
   getShowingInfo(): string {
     let filteredItems = "";
@@ -570,10 +597,7 @@ export class EzyTables {
   private replaceTable(): void {
     if (!this.targetTable) return;
 
-    const tableLabel =
-      this.targetTable.getAttribute("aria-label")?.trim() ||
-      this.targetTable.querySelector("caption")?.textContent?.trim() ||
-      "Data table";
+    const tableLabel = this.getTableLabel();
 
     let tableContainer;
     let table;
@@ -816,6 +840,8 @@ export class EzyTables {
           `.${this.dynamicClasses["ezy-tables-search-input"]}`
         )!;
       }
+
+      searchInput.setAttribute("aria-label", "Search");
 
       // add search input classes if exists
       if (this.htmlClasses.header?.search?.input) {

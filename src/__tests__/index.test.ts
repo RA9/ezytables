@@ -461,7 +461,9 @@ describe("Target Table Accessibility", () => {
       ) as HTMLButtonElement;
     const getCurrentPage = () =>
       document.querySelector('[aria-current="page"]') as HTMLElement;
+    const table = document.querySelector(".ezy-tables");
 
+    expect(table?.getAttribute("aria-label")).toBe("Paged table");
     expect(getPrevButton().disabled).toBe(true);
     expect(getPrevButton().getAttribute("aria-disabled")).toBe("true");
     expect(getNextButton().disabled).toBe(false);
