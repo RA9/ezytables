@@ -559,7 +559,64 @@ describe("Data Management", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. Plugin System
+// 8. Lifecycle Callbacks
+// ---------------------------------------------------------------------------
+describe("Lifecycle Callbacks", () => {
+  it("onPageChange is called when page state changes", async () => {
+    const onPageChange = vi.fn();
+    const { table } = createInstance({ onPageChange });
+    await flushPromises();
+
+    table.nextPage();
+    table.goToPage(4);
+    table.prevPage();
+
+    expect(onPageChange).toHaveBeenNthCalledWith(1, 2, 4);
+    expect(onPageChange).toHaveBeenNthCalledWith(2, 4, 4);
+    expect(onPageChange).toHaveBeenNthCalledWith(3, 3, 4);
+  });
+
+  it("onSearch is called with query and result count", async () => {
+    vi.useFakeTimers();
+    const onSearch = vi.fn();
+    const onPageChange = vi.fn();
+    const { table } = createInstance({ onSearch, onPageChange });
+    await vi.advanceTimersByTimeAsync(0);
+
+    table.setSearchDebounced("User");
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(onSearch).toHaveBeenCalledWith("User", 5);
+    expect(onPageChange).toHaveBeenCalledWith(1, 2);
+
+    vi.useRealTimers();
+  });
+
+  it("onSort is called with field and order", async () => {
+    const onSort = vi.fn();
+    const { table } = createInstance({ onSort });
+    await flushPromises();
+
+    table.sortData("name", "desc");
+
+    expect(onSort).toHaveBeenCalledWith("name", "desc");
+  });
+
+  it("onDataChange is called when data is replaced", async () => {
+    const onDataChange = vi.fn();
+    const { table } = createInstance({ onDataChange });
+    await flushPromises();
+    const newData = [{ name: "Nova", email: "nova@example.com", role: "User" }];
+
+    table.setData(newData);
+    await flushPromises();
+
+    expect(onDataChange).toHaveBeenCalledWith(newData);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Plugin System
 // ---------------------------------------------------------------------------
 describe("Plugin System", () => {
   it("registerPlugin() adds plugin", () => {
@@ -586,7 +643,7 @@ describe("Plugin System", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 9. Destroy
+// 10. Destroy
 // ---------------------------------------------------------------------------
 describe("Destroy", () => {
   it("destroy() cleans up data", () => {
