@@ -148,9 +148,10 @@ const table = new EzyTables({
 > `innerHTML`. Set `sanitize: false` only when the returned HTML is fully
 > trusted.
 
-The built-in sanitizer removes `<script>` tags, inline event handler
-attributes, and `javascript:`, `vbscript:`, and `data:text/html` URLs from
-plugin HTML.
+The built-in sanitizer removes dangerous container tags such as `<script>`,
+`<iframe>`, `<object>`, `<embed>`, `<link>`, `<meta>`, `<style>`, and `<base>`,
+strips inline event/style attributes, and rejects `javascript:`, `vbscript:`,
+and `data:` URLs in plugin HTML.
 
 ## Constructor Options
 

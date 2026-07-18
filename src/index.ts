@@ -205,7 +205,7 @@ export class EzyTables {
     template.innerHTML = String(html ?? "");
 
     template.content
-      .querySelectorAll("script,iframe,object,embed,link,meta,style")
+      .querySelectorAll("script,iframe,object,embed,link,meta,style,base")
       .forEach(element => element.remove());
 
     template.content.querySelectorAll("*").forEach(element => {
@@ -213,7 +213,7 @@ export class EzyTables {
         const name = attribute.name.toLowerCase();
         const value = attribute.value.trim();
 
-        if (name.startsWith("on") || name === "srcdoc") {
+        if (name.startsWith("on") || name === "srcdoc" || name === "style") {
           element.removeAttribute(attribute.name);
           return;
         }
@@ -238,7 +238,7 @@ export class EzyTables {
     return (
       normalizedValue.startsWith("javascript:") ||
       normalizedValue.startsWith("vbscript:") ||
-      normalizedValue.startsWith("data:text/html")
+      normalizedValue.startsWith("data:")
     );
   }
 

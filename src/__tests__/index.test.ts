@@ -596,7 +596,7 @@ describe("Plugin System", () => {
           name: "html",
           field: "name",
           transform: (value: any) =>
-            `<a href="javascript:alert(1)" onclick="alert(1)"><strong>${value}</strong></a><script>alert(1)</script>`,
+            `<base href="https://evil.example/"><a href="data:text/html,alert(1)" onclick="alert(1)" style="color:red"><strong>${value}</strong></a><script>alert(1)</script>`,
         },
       ],
     });
@@ -608,6 +608,8 @@ describe("Plugin System", () => {
     ) as HTMLTableCellElement | null;
     expect(cell).not.toBeNull();
     expect(cell?.innerHTML).toBe("<a><strong>Alice</strong></a>");
+    expect(cell?.innerHTML).not.toContain("script");
+    expect(cell?.innerHTML).not.toContain("base");
 
     table.destroy();
     document.body.innerHTML = "";
