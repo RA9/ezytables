@@ -129,6 +129,7 @@ export class EzyTables {
   private onSearch?: (query: string, resultCount: number) => void;
   private onSort?: (field: string, order: "asc" | "desc") => void;
   private onDataChange?: (newData: any[]) => void;
+  private dataChangeNotificationScheduled = false;
 
   constructor(opts: EzyTablesOptions) {
     this.serverEnabled =
@@ -138,19 +139,7 @@ export class EzyTables {
       opts.clientEnabled ||
       (opts.target && opts.data && opts.data?.length > 0)
     ) {
-      this._data = new Proxy(opts.data || [], {
-        set: (target: any, key: string, value) => {
-          target[key] = value;
-          this._filteredDataCache = null;
-          if (key !== "length") {
-            this.onDataChange?.([...this._data]);
-          }
-          if (!opts.target) {
-            this.updateTable();
-          }
-          return true;
-        },
-      });
+      this._data = this.createDataProxy(opts.data || [], () => !opts.target);
     }
 
     this.hideDetails = opts.hideDetails || {};
@@ -511,6 +500,35 @@ export class EzyTables {
     ) {
       this.onPageChange?.(this.currentPage, totalPages);
     }
+  }
+
+  private queueDataChangeNotification(): void {
+    if (!this.onDataChange || this.dataChangeNotificationScheduled) return;
+
+    this.dataChangeNotificationScheduled = true;
+    queueMicrotask(() => {
+      this.dataChangeNotificationScheduled = false;
+      this.onDataChange?.([...this._data]);
+    });
+  }
+
+  private createDataProxy(data: any[], shouldUpdate: () => boolean): any[] {
+    return new Proxy(data, {
+      set: (target: any[], key: string | symbol, value) => {
+        const previousValue = (target as any)[key as any];
+        if (previousValue === value) return true;
+
+        (target as any)[key as any] = value;
+        this._filteredDataCache = null;
+        if (key !== "length") {
+          this.queueDataChangeNotification();
+        }
+        if (shouldUpdate()) {
+          this.updateTable();
+        }
+        return true;
+      },
+    });
   }
 
   // Private method to trigger a table update and custom rendering
@@ -1313,19 +1331,7 @@ export class EzyTables {
   public setData(data: any[]): void {
     const previousPage = this.currentPage;
     const previousTotalPages = this.getTotalPages();
-    this._data = new Proxy(data, {
-      set: (target: any, key: string, value) => {
-        target[key] = value;
-        this._filteredDataCache = null;
-        if (key !== "length") {
-          this.onDataChange?.([...this._data]);
-        }
-        if (!this.targetTable) {
-          this.updateTable();
-        }
-        return true;
-      },
-    });
+    this._data = this.createDataProxy(data, () => !this.targetTable);
     this._filteredDataCache = null;
     this.currentPage = 1;
     this.onDataChange?.([...this._data]);
