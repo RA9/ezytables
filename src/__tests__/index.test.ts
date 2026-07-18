@@ -583,6 +583,68 @@ describe("Plugin System", () => {
 
     expect(() => table.registerPlugin(plugin2)).not.toThrow();
   });
+
+  it("sanitizes plugin transform HTML by default", async () => {
+    document.body.innerHTML = '<table id="plugin-table"></table>';
+
+    const table = new EzyTables({
+      target: "#plugin-table",
+      data: [{ name: "Alice" }],
+      columns: [{ name: "name", label: "Name" }],
+      plugins: [
+        {
+          name: "html",
+          field: "name",
+          transform: (value: any) =>
+            `<base href="https://evil.example/"><a href="&#x64;ata:text/html,alert(1)" onclick="alert(1)" style="color:red"><strong>${value}</strong></a><script>alert(1)</script>`,
+        },
+      ],
+    });
+
+    await flushPromises();
+
+    const cell = document.querySelector(
+      "tbody td"
+    ) as HTMLTableCellElement | null;
+    expect(cell).not.toBeNull();
+    expect(cell?.innerHTML).toBe("<a><strong>Alice</strong></a>");
+    expect(cell?.innerHTML).not.toContain("script");
+    expect(cell?.innerHTML).not.toContain("base");
+
+    table.destroy();
+    document.body.innerHTML = "";
+  });
+
+  it("allows trusted raw plugin HTML when sanitize is false", async () => {
+    document.body.innerHTML = '<table id="plugin-table"></table>';
+
+    const table = new EzyTables({
+      target: "#plugin-table",
+      data: [{ name: "Alice" }],
+      columns: [{ name: "name", label: "Name" }],
+      sanitize: false,
+      plugins: [
+        {
+          name: "html",
+          field: "name",
+          transform: (value: any) =>
+            `<a href="javascript:alert(1)" onclick="alert(1)"><strong>${value}</strong></a>`,
+        },
+      ],
+    });
+
+    await flushPromises();
+
+    const cell = document.querySelector(
+      "tbody td"
+    ) as HTMLTableCellElement | null;
+    expect(cell).not.toBeNull();
+    expect(cell?.innerHTML).toContain('href="javascript:alert(1)"');
+    expect(cell?.innerHTML).toContain('onclick="alert(1)"');
+
+    table.destroy();
+    document.body.innerHTML = "";
+  });
 });
 
 // ---------------------------------------------------------------------------
