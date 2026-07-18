@@ -613,7 +613,6 @@ export class EzyTables {
     tableContainer.setAttribute("aria-label", tableLabel);
 
     table.classList.add(`ezy-tables`, this.dynamicClasses["ezy-tables"]);
-    table.setAttribute("role", "grid");
     table.setAttribute("aria-label", tableLabel);
 
     // add table classes if exists
@@ -923,7 +922,6 @@ export class EzyTables {
       const currentPageIndicator = document.createElement("span");
       currentPageIndicator.classList.add("ezy-tables-footer-page");
       currentPageIndicator.setAttribute("aria-current", "page");
-      currentPageIndicator.setAttribute("aria-live", "polite");
       currentPageIndicator.textContent = `Page ${Math.min(
         this.currentPage,
         totalPages

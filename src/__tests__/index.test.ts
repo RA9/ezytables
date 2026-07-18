@@ -422,7 +422,6 @@ describe("Target Table Accessibility", () => {
 
     expect(container?.getAttribute("role")).toBe("region");
     expect(container?.getAttribute("aria-label")).toBe("Users table");
-    expect(table?.getAttribute("role")).toBe("grid");
     expect(table?.getAttribute("aria-label")).toBe("Users table");
     expect(searchInput.getAttribute("aria-label")).toBe("Search");
     expect(perPageSelect.getAttribute("aria-label")).toBe("Rows per page");
