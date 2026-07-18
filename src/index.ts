@@ -515,14 +515,9 @@ export class EzyTables {
   private createDataProxy(data: any[], shouldUpdate: () => boolean): any[] {
     return new Proxy(data, {
       set: (target: any[], key: string | symbol, value) => {
-        const previousValue = (target as any)[key as any];
-        if (previousValue === value) return true;
-
         (target as any)[key as any] = value;
         this._filteredDataCache = null;
-        if (key !== "length") {
-          this.queueDataChangeNotification();
-        }
+        this.queueDataChangeNotification();
         if (shouldUpdate()) {
           this.updateTable();
         }
