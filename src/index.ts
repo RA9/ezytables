@@ -75,6 +75,7 @@ export interface EzyTablesOptions {
     header?: boolean;
     footer?: boolean;
   };
+  perPageOptions?: number[]; // Custom per-page dropdown options (default: [5, 10, 25, 50, 100])
 }
 
 export enum DataMode {
@@ -119,6 +120,7 @@ export class EzyTables {
   private sortField: string | null = null;
   private sortOrder: "asc" | "desc" = "asc";
   private domEventAbortController: AbortController | null = null;
+  private perPageOptions: number[];
 
   constructor(opts: EzyTablesOptions) {
     this.serverEnabled =
@@ -157,6 +159,7 @@ export class EzyTables {
     };
 
     this.plugins = opts?.plugins || [];
+    this.perPageOptions = opts.perPageOptions || [5, 10, 25, 50, 100];
 
     this.perPage =
       this.serverEnabled && !opts.target
@@ -730,7 +733,7 @@ export class EzyTables {
       const perPageSelect = document.createElement("select");
       perPageSelect.classList.add("ezy-tables-per-page-select");
 
-      const perPageOptions = [5, 10, 25, 50, 100];
+      const perPageOptions = this.perPageOptions;
 
       perPageOptions.forEach(option => {
         const perPageOption = document.createElement("option");
