@@ -76,6 +76,7 @@ export interface EzyTablesOptions {
     footer?: boolean;
   };
   perPageOptions?: number[]; // Custom per-page dropdown options (default: [5, 10, 25, 50, 100])
+  sanitize?: boolean; // Sanitize plugin transform HTML before assigning innerHTML (default: true)
 }
 
 export enum DataMode {
@@ -121,6 +122,7 @@ export class EzyTables {
   private sortOrder: "asc" | "desc" = "asc";
   private domEventAbortController: AbortController | null = null;
   private perPageOptions: number[];
+  private sanitizePluginOutput: boolean;
 
   constructor(opts: EzyTablesOptions) {
     this.serverEnabled =
@@ -160,6 +162,7 @@ export class EzyTables {
 
     this.plugins = opts?.plugins || [];
     this.perPageOptions = opts.perPageOptions || [5, 10, 25, 50, 100];
+    this.sanitizePluginOutput = opts.sanitize !== false;
 
     this.perPage =
       this.serverEnabled && !opts.target
@@ -195,6 +198,48 @@ export class EzyTables {
 
   public registerPlugin(plugin: Plugin): void {
     this.plugins.push(plugin);
+  }
+
+  private sanitizeHTML(html: unknown): string {
+    const template = document.createElement("template");
+    template.innerHTML = String(html ?? "");
+
+    template.content
+      .querySelectorAll("script,iframe,object,embed,link,meta,style")
+      .forEach(element => element.remove());
+
+    template.content.querySelectorAll("*").forEach(element => {
+      Array.from(element.attributes).forEach(attribute => {
+        const name = attribute.name.toLowerCase();
+        const value = attribute.value.trim();
+
+        if (name.startsWith("on") || name === "srcdoc") {
+          element.removeAttribute(attribute.name);
+          return;
+        }
+
+        if (
+          ["href", "src", "xlink:href", "formaction"].includes(name) &&
+          this.isUnsafeUrl(value)
+        ) {
+          element.removeAttribute(attribute.name);
+        }
+      });
+    });
+
+    return template.innerHTML;
+  }
+
+  private isUnsafeUrl(value: string): boolean {
+    const normalizedValue = value
+      .replace(/[\u0000-\u001f\u007f-\u009f\s]+/g, "")
+      .toLowerCase();
+
+    return (
+      normalizedValue.startsWith("javascript:") ||
+      normalizedValue.startsWith("vbscript:") ||
+      normalizedValue.startsWith("data:text/html")
+    );
   }
 
   // Private method to filter data based on search query
@@ -1090,7 +1135,9 @@ export class EzyTables {
             });
 
             if (pluginTransformed) {
-              td.innerHTML = value;
+              td.innerHTML = this.sanitizePluginOutput
+                ? this.sanitizeHTML(value)
+                : String(value ?? "");
             } else {
               td.textContent = value;
             }

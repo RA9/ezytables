@@ -138,8 +138,19 @@ const table = new EzyTables({
   data: myData,
   plugins: [datePlugin],
   target: "#myTable",
+  sanitize: true, // default: sanitize plugin HTML before inserting it
 });
 ```
+
+> [!WARNING]
+> Plugin `transform()` results are inserted into the cell as HTML, not text.
+> EzyTables sanitizes plugin output by default before assigning it to
+> `innerHTML`. Set `sanitize: false` only when the returned HTML is fully
+> trusted.
+
+The built-in sanitizer removes `<script>` tags, inline event handler
+attributes, and `javascript:`, `vbscript:`, and `data:text/html` URLs from
+plugin HTML.
 
 ## Constructor Options
 
@@ -168,6 +179,7 @@ interface EasyTablesOptions {
     footer?: boolean; // Hide pagination footer
   };
   perPageOptions?: number[]; // Custom per-page dropdown options (default: [5, 10, 25, 50, 100])
+  sanitize?: boolean; // Sanitize plugin transform HTML before assigning innerHTML (default: true)
 }
 ```
 

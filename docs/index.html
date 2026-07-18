@@ -1099,6 +1099,7 @@ table.<span class="fn">nextPage</span>();</pre>
 <span class="kw">const</span> table = <span class="kw">new</span> <span class="fn">EzyTables</span>({
   <span class="prop">target</span>: <span class="str">"#myTable"</span>,
   <span class="prop">data</span>: myData,
+  <span class="prop">sanitize</span>: <span class="num">true</span>, <span class="cm">// default for plugin HTML</span>
   <span class="prop">classes</span>: {
     <span class="prop">container</span>: <span class="str">"shadow rounded-lg p-4"</span>,
     <span class="prop">table</span>: {
@@ -1110,6 +1111,11 @@ table.<span class="fn">nextPage</span>();</pre>
   <span class="prop">plugins</span>: [dateFormatPlugin],
 });</pre>
           </div>
+          <p class="section-desc" style="margin-top: 16px">
+            Plugin <code>transform()</code> output is inserted as HTML.
+            EzyTables sanitizes plugin output by default; set
+            <code>sanitize: false</code> only for fully trusted HTML.
+          </p>
         </div>
       </div>
     </section>
