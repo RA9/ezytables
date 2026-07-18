@@ -437,28 +437,27 @@ export class EzyTables {
 
   // Method to get information about the items being displayed
   getShowingInfo(): string {
-    let totalItems;
-    let startIndex;
-    let endIndex;
     let filteredItems = "";
 
     if (this.dataMode === DataMode.Filtered) {
       const filteredData = this.filterData();
-      totalItems = filteredData.length;
-      startIndex = (this.currentPage - 1) * this.perPage + 1;
-      endIndex = Math.min(startIndex + this.perPage - 1, totalItems);
+      const totalItems = filteredData.length;
+      if (totalItems === 0) {
+        return "No items to show";
+      }
+      const startIndex = (this.currentPage - 1) * this.perPage + 1;
+      const endIndex = Math.min(startIndex + this.perPage - 1, totalItems);
       filteredItems = ` (filtered from ${this._data.length} total items)`;
+      return `Showing ${startIndex} to ${endIndex} of ${totalItems} items ${filteredItems}.`;
     } else {
-      totalItems = this.getTotalItems();
-      startIndex = (this.currentPage - 1) * this.perPage + 1;
-      endIndex = Math.min(startIndex + this.perPage - 1, totalItems);
+      const totalItems = this.getTotalItems();
+      if (totalItems === 0) {
+        return "No items to show";
+      }
+      const startIndex = (this.currentPage - 1) * this.perPage + 1;
+      const endIndex = Math.min(startIndex + this.perPage - 1, totalItems);
+      return `Showing ${startIndex} to ${endIndex} of ${totalItems} items ${filteredItems}.`;
     }
-
-    if (totalItems === 0) {
-      return "No items to show";
-    }
-
-    return `Showing ${startIndex} to ${endIndex} of ${totalItems} items ${filteredItems}.`;
   }
 
   private getTotalItems(): number {
