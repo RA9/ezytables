@@ -834,7 +834,6 @@ export class EzyTables {
         );
         searchInput.setAttribute("type", "search");
         searchInput.setAttribute("placeholder", "Search");
-        searchInput.setAttribute("aria-label", "Search");
       } else {
         searchInput = document.querySelector(
           `.${this.dynamicClasses["ezy-tables-search-input"]}`
