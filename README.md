@@ -167,6 +167,7 @@ interface EasyTablesOptions {
     header?: boolean; // Hide search/per-page controls
     footer?: boolean; // Hide pagination footer
   };
+  perPageOptions?: number[]; // Custom per-page dropdown options (default: [5, 10, 25, 50, 100])
 }
 ```
 

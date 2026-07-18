@@ -408,6 +408,56 @@ describe("Per Page", () => {
 
     expect(table.getCurrentPage()).toBe(1);
   });
+
+  it("perPageOptions renders custom options in the target-table dropdown", async () => {
+    document.body.innerHTML = '<table id="pp-table"></table>';
+
+    new EzyTables({
+      target: "#pp-table",
+      data: [
+        { name: "Alice", email: "alice@example.com" },
+        { name: "Bob", email: "bob@example.com" },
+      ],
+      columns: [
+        { name: "name", label: "Name" },
+        { name: "email", label: "Email" },
+      ],
+      perPageOptions: [2, 4, 8],
+    });
+    await flushPromises();
+
+    const options = Array.from(
+      document.querySelectorAll(".ezy-tables-per-page-option")
+    ).map(el => Number((el as HTMLOptionElement).value));
+
+    expect(options).toEqual([2, 4, 8]);
+
+    document.body.innerHTML = "";
+    document.getElementById("ezy-tables-styles")?.remove();
+  });
+
+  it("perPageOptions falls back to [5,10,25,50,100] when not provided", async () => {
+    document.body.innerHTML = '<table id="pp-default-table"></table>';
+
+    new EzyTables({
+      target: "#pp-default-table",
+      data: [{ name: "Alice", email: "alice@example.com" }],
+      columns: [
+        { name: "name", label: "Name" },
+        { name: "email", label: "Email" },
+      ],
+    });
+    await flushPromises();
+
+    const options = Array.from(
+      document.querySelectorAll(".ezy-tables-per-page-option")
+    ).map(el => Number((el as HTMLOptionElement).value));
+
+    expect(options).toEqual([5, 10, 25, 50, 100]);
+
+    document.body.innerHTML = "";
+    document.getElementById("ezy-tables-styles")?.remove();
+  });
 });
 
 // ---------------------------------------------------------------------------
