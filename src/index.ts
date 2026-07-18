@@ -454,6 +454,10 @@ export class EzyTables {
       endIndex = Math.min(startIndex + this.perPage - 1, totalItems);
     }
 
+    if (totalItems === 0) {
+      return "No items to show";
+    }
+
     return `Showing ${startIndex} to ${endIndex} of ${totalItems} items ${filteredItems}.`;
   }
 

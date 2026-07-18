@@ -434,6 +434,12 @@ describe("Data Info", () => {
     expect(info).toContain("Showing 10 to 10 of 10 items");
   });
 
+  it("getShowingInfo() returns 'No items to show' when data is empty", () => {
+    const { table } = createInstance({ data: [] });
+    const info = table.getShowingInfo();
+    expect(info).toBe("No items to show");
+  });
+
   it("getShowingInfo() includes filter info when searching", async () => {
     vi.useFakeTimers();
 
