@@ -570,6 +570,11 @@ export class EzyTables {
   private replaceTable(): void {
     if (!this.targetTable) return;
 
+    const tableLabel =
+      this.targetTable.getAttribute("aria-label")?.trim() ||
+      this.targetTable.querySelector("caption")?.textContent?.trim() ||
+      "Data table";
+
     let tableContainer;
     let table;
     // create the table container if it doesn't exist
@@ -604,7 +609,12 @@ export class EzyTables {
       tableContainer.classList.remove("ezy-tables-container");
     }
 
+    tableContainer.setAttribute("role", "region");
+    tableContainer.setAttribute("aria-label", tableLabel);
+
     table.classList.add(`ezy-tables`, this.dynamicClasses["ezy-tables"]);
+    table.setAttribute("role", "grid");
+    table.setAttribute("aria-label", tableLabel);
 
     // add table classes if exists
     if (this.htmlClasses.table?.container) {
@@ -732,6 +742,7 @@ export class EzyTables {
 
       const perPageSelect = document.createElement("select");
       perPageSelect.classList.add("ezy-tables-per-page-select");
+      perPageSelect.setAttribute("aria-label", "Rows per page");
 
       const perPageOptions = this.perPageOptions;
 
@@ -800,6 +811,7 @@ export class EzyTables {
         );
         searchInput.setAttribute("type", "search");
         searchInput.setAttribute("placeholder", "Search");
+        searchInput.setAttribute("aria-label", "Search");
       } else {
         searchInput = document.querySelector(
           `.${this.dynamicClasses["ezy-tables-search-input"]}`
@@ -874,9 +886,16 @@ export class EzyTables {
         footerInfo.textContent = this.getShowingInfo() || "";
       }
 
+      const totalPages = Math.max(this.getTotalPages(), 1);
+      const isFirstPage = this.currentPage <= 1;
+      const isLastPage = this.currentPage >= totalPages;
+
       const prevButton = document.createElement("button");
       prevButton.textContent = "Previous";
       prevButton.classList.add("ezy-tables-footer-button");
+      prevButton.setAttribute("aria-label", "Previous page");
+      prevButton.setAttribute("aria-disabled", String(isFirstPage));
+      prevButton.disabled = isFirstPage;
 
       prevButton.addEventListener(
         "click",
@@ -889,6 +908,9 @@ export class EzyTables {
       const nextButton = document.createElement("button");
       nextButton.textContent = "Next";
       nextButton.classList.add("ezy-tables-footer-button");
+      nextButton.setAttribute("aria-label", "Next page");
+      nextButton.setAttribute("aria-disabled", String(isLastPage));
+      nextButton.disabled = isLastPage;
 
       nextButton.addEventListener(
         "click",
@@ -898,7 +920,17 @@ export class EzyTables {
         domEventOptions
       );
 
+      const currentPageIndicator = document.createElement("span");
+      currentPageIndicator.classList.add("ezy-tables-footer-page");
+      currentPageIndicator.setAttribute("aria-current", "page");
+      currentPageIndicator.setAttribute("aria-live", "polite");
+      currentPageIndicator.textContent = `Page ${Math.min(
+        this.currentPage,
+        totalPages
+      )} of ${totalPages}`;
+
       footerButtons.appendChild(prevButton);
+      footerButtons.appendChild(currentPageIndicator);
       footerButtons.appendChild(nextButton);
 
       footer.appendChild(footerInfo);
@@ -946,6 +978,7 @@ export class EzyTables {
         : "";
       th.setAttribute("data-name", column.name);
       th.setAttribute("data-label", column.label);
+      th.setAttribute("scope", "col");
       th.innerHTML = `${column.label}${sortIndicator}`;
 
       // apply column width
