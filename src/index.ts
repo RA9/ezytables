@@ -231,21 +231,25 @@ export class EzyTables {
   }
 
   private isUnsafeUrl(value: string): boolean {
-    const normalizedValue = this.decodeHtmlEntities(value)
+    const normalizedValue = value
       .replace(/[\u0000-\u001f\u007f-\u009f\s]+/g, "")
       .toLowerCase();
 
-    return (
-      normalizedValue.startsWith("javascript:") ||
-      normalizedValue.startsWith("vbscript:") ||
-      normalizedValue.startsWith("data:")
-    );
-  }
+    if (!normalizedValue) return false;
+    if (
+      normalizedValue.startsWith("#") ||
+      normalizedValue.startsWith("?") ||
+      normalizedValue.startsWith("./") ||
+      normalizedValue.startsWith("../")
+    ) {
+      return false;
+    }
 
-  private decodeHtmlEntities(value: string): string {
-    const textarea = document.createElement("textarea");
-    textarea.innerHTML = value;
-    return textarea.value;
+    if (normalizedValue.startsWith("/") && !normalizedValue.startsWith("//")) {
+      return false;
+    }
+
+    return !/^(https?:|mailto:|tel:)/.test(normalizedValue);
   }
 
   private serializeHTMLFragment(fragment: DocumentFragment): string {
