@@ -440,6 +440,33 @@ export class EzyTables {
     return Math.ceil(totalItems / this.perPage);
   }
 
+  private getTableLabel(): string {
+    if (!this.targetTable) {
+      return "EzyTables data table";
+    }
+
+    const ariaLabel = this.targetTable.getAttribute("aria-label")?.trim();
+    if (ariaLabel) {
+      return ariaLabel;
+    }
+
+    const caption = this.targetTable
+      .querySelector("caption")
+      ?.textContent?.trim();
+    if (caption) {
+      return caption;
+    }
+
+    if (this.targetTable.id) {
+      const normalizedId = this.targetTable.id.replace(/[-_]+/g, " ").trim();
+      const readableId =
+        normalizedId.charAt(0).toUpperCase() + normalizedId.slice(1);
+      return /table$/i.test(readableId) ? readableId : `${readableId} table`;
+    }
+
+    return "EzyTables data table";
+  }
+
   // Method to get information about the items being displayed
   getShowingInfo(): string {
     let filteredItems = "";
@@ -572,6 +599,8 @@ export class EzyTables {
   private replaceTable(): void {
     if (!this.targetTable) return;
 
+    const tableLabel = this.getTableLabel();
+
     let tableContainer;
     let table;
     // create the table container if it doesn't exist
@@ -606,7 +635,11 @@ export class EzyTables {
       tableContainer.classList.remove("ezy-tables-container");
     }
 
+    tableContainer.setAttribute("role", "region");
+    tableContainer.setAttribute("aria-label", tableLabel);
+
     table.classList.add(`ezy-tables`, this.dynamicClasses["ezy-tables"]);
+    table.setAttribute("aria-label", tableLabel);
 
     // add table classes if exists
     if (this.htmlClasses.table?.container) {
@@ -734,6 +767,7 @@ export class EzyTables {
 
       const perPageSelect = document.createElement("select");
       perPageSelect.classList.add("ezy-tables-per-page-select");
+      perPageSelect.setAttribute("aria-label", "Rows per page");
 
       const perPageOptions = this.perPageOptions;
 
@@ -808,6 +842,8 @@ export class EzyTables {
         )!;
       }
 
+      searchInput.setAttribute("aria-label", "Search");
+
       // add search input classes if exists
       if (this.htmlClasses.header?.search?.input) {
         const classes = this.htmlClasses.header.search.input.split(" ");
@@ -876,9 +912,16 @@ export class EzyTables {
         footerInfo.textContent = this.getShowingInfo() || "";
       }
 
+      const totalPages = Math.max(this.getTotalPages(), 1);
+      const isFirstPage = this.currentPage <= 1;
+      const isLastPage = this.currentPage >= totalPages;
+
       const prevButton = document.createElement("button");
       prevButton.textContent = "Previous";
       prevButton.classList.add("ezy-tables-footer-button");
+      prevButton.setAttribute("aria-label", "Previous page");
+      prevButton.setAttribute("aria-disabled", String(isFirstPage));
+      prevButton.disabled = isFirstPage;
 
       prevButton.addEventListener(
         "click",
@@ -891,6 +934,9 @@ export class EzyTables {
       const nextButton = document.createElement("button");
       nextButton.textContent = "Next";
       nextButton.classList.add("ezy-tables-footer-button");
+      nextButton.setAttribute("aria-label", "Next page");
+      nextButton.setAttribute("aria-disabled", String(isLastPage));
+      nextButton.disabled = isLastPage;
 
       nextButton.addEventListener(
         "click",
@@ -900,7 +946,16 @@ export class EzyTables {
         domEventOptions
       );
 
+      const currentPageIndicator = document.createElement("span");
+      currentPageIndicator.classList.add("ezy-tables-footer-page");
+      currentPageIndicator.setAttribute("aria-current", "page");
+      currentPageIndicator.textContent = `Page ${Math.min(
+        this.currentPage,
+        totalPages
+      )} of ${totalPages}`;
+
       footerButtons.appendChild(prevButton);
+      footerButtons.appendChild(currentPageIndicator);
       footerButtons.appendChild(nextButton);
 
       footer.appendChild(footerInfo);
@@ -948,6 +1003,7 @@ export class EzyTables {
         : "";
       th.setAttribute("data-name", column.name);
       th.setAttribute("data-label", column.label);
+      th.setAttribute("scope", "col");
       th.innerHTML = `${column.label}${sortIndicator}`;
 
       // apply column width

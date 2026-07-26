@@ -378,6 +378,116 @@ describe("Target Table Sorting UI", () => {
   });
 });
 
+describe("Target Table Accessibility", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+    document.getElementById("ezy-tables-styles")?.remove();
+  });
+
+  it("adds accessible labels and semantics to the generated table UI", async () => {
+    document.body.innerHTML =
+      '<table id="accessible-table" aria-label="Users table"></table>';
+
+    new EzyTables({
+      target: "#accessible-table",
+      data: [
+        { name: "Alice", email: "alice@example.com" },
+        { name: "Bob", email: "bob@example.com" },
+      ],
+      columns: [
+        { name: "name", label: "Name", sortable: true },
+        { name: "email", label: "Email" },
+      ],
+    });
+    await flushPromises();
+
+    const container = document.querySelector(".ezy-tables-container");
+    const table = document.querySelector(".ezy-tables");
+    const searchInput = document.querySelector(
+      ".ezy-tables-search-input"
+    ) as HTMLInputElement;
+    const perPageSelect = document.querySelector(
+      ".ezy-tables-per-page-select"
+    ) as HTMLSelectElement;
+    const prevButton = document.querySelector(
+      'button[aria-label="Previous page"]'
+    ) as HTMLButtonElement;
+    const nextButton = document.querySelector(
+      'button[aria-label="Next page"]'
+    ) as HTMLButtonElement;
+    const currentPage = document.querySelector(
+      '[aria-current="page"]'
+    ) as HTMLElement;
+    const headers = Array.from(document.querySelectorAll(".ezy-tables th"));
+
+    expect(container?.getAttribute("role")).toBe("region");
+    expect(container?.getAttribute("aria-label")).toBe("Users table");
+    expect(table?.getAttribute("aria-label")).toBe("Users table");
+    expect(searchInput.getAttribute("aria-label")).toBe("Search");
+    expect(perPageSelect.getAttribute("aria-label")).toBe("Rows per page");
+    expect(prevButton.getAttribute("aria-disabled")).toBe("true");
+    expect(nextButton.getAttribute("aria-disabled")).toBe("true");
+    expect(currentPage.textContent).toBe("Page 1 of 1");
+    headers.forEach(header => {
+      expect(header.getAttribute("scope")).toBe("col");
+    });
+  });
+
+  it("updates pagination accessibility state as pages change", async () => {
+    document.body.innerHTML = '<table id="paged-table"></table>';
+
+    new EzyTables({
+      target: "#paged-table",
+      data: [
+        { name: "Charlie", email: "charlie@example.com" },
+        { name: "Alice", email: "alice@example.com" },
+        { name: "Bob", email: "bob@example.com" },
+      ],
+      columns: [
+        { name: "name", label: "Name" },
+        { name: "email", label: "Email" },
+      ],
+      client: { limit: 10, perPage: 1 },
+    });
+    await flushPromises();
+
+    const getPrevButton = () =>
+      document.querySelector(
+        'button[aria-label="Previous page"]'
+      ) as HTMLButtonElement;
+    const getNextButton = () =>
+      document.querySelector(
+        'button[aria-label="Next page"]'
+      ) as HTMLButtonElement;
+    const getCurrentPage = () =>
+      document.querySelector('[aria-current="page"]') as HTMLElement;
+    const table = document.querySelector(".ezy-tables");
+
+    expect(table?.getAttribute("aria-label")).toBe("Paged table");
+    expect(getPrevButton().disabled).toBe(true);
+    expect(getPrevButton().getAttribute("aria-disabled")).toBe("true");
+    expect(getNextButton().disabled).toBe(false);
+    expect(getNextButton().getAttribute("aria-disabled")).toBe("false");
+    expect(getCurrentPage().textContent).toBe("Page 1 of 3");
+
+    getNextButton().click();
+    await flushPromises();
+
+    expect(getPrevButton().disabled).toBe(false);
+    expect(getPrevButton().getAttribute("aria-disabled")).toBe("false");
+    expect(getNextButton().disabled).toBe(false);
+    expect(getNextButton().getAttribute("aria-disabled")).toBe("false");
+    expect(getCurrentPage().textContent).toBe("Page 2 of 3");
+
+    getNextButton().click();
+    await flushPromises();
+
+    expect(getNextButton().disabled).toBe(true);
+    expect(getNextButton().getAttribute("aria-disabled")).toBe("true");
+    expect(getCurrentPage().textContent).toBe("Page 3 of 3");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 5. Per Page
 // ---------------------------------------------------------------------------
