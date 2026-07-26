@@ -168,6 +168,10 @@ interface EasyTablesOptions {
     footer?: boolean; // Hide pagination footer
   };
   perPageOptions?: number[]; // Custom per-page dropdown options (default: [5, 10, 25, 50, 100])
+  onPageChange?: (page: number, totalPages: number) => void;
+  onSearch?: (query: string, resultCount: number) => void;
+  onSort?: (field: string, order: "asc" | "desc") => void;
+  onDataChange?: (newData: any[]) => void;
 }
 ```
 
