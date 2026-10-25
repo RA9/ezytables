@@ -46,9 +46,13 @@ function createTargetTableInstance(overrides: Record<string, any> = {}) {
   const table = new EzyTables({
     target: "#target-table",
     data: [
-      { name: "Charlie", email: "charlie@example.com" },
-      { name: "Alice", email: "alice@example.com" },
-      { name: "Bob", email: "bob@example.com" },
+      {
+        "display-name": "Charlie",
+        name: "Charlie",
+        email: "charlie@example.com",
+      },
+      { "display-name": "Alice", name: "Alice", email: "alice@example.com" },
+      { "display-name": "Bob", name: "Bob", email: "bob@example.com" },
     ],
     columns: [
       {
@@ -850,6 +854,88 @@ describe("Column Properties (DOM rendering)", () => {
   function getAllTds(): HTMLElement[] {
     return Array.from(document.querySelectorAll("tbody td")) as HTMLElement[];
   }
+
+  it("renders object rows in column order with empty cells for missing keys", async () => {
+    const data = [
+      { email: "alice@example.com", name: "Alice", id: 1 },
+      { id: 2, name: "Bob" },
+    ];
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data,
+      columns: [
+        { name: "name", label: "Name" },
+        { name: "email", label: "Email" },
+      ],
+    });
+    await flushPromises();
+
+    const rows = Array.from(document.querySelectorAll("tbody tr"));
+    expect(
+      rows.map(row => Array.from(row.children, cell => cell.textContent))
+    ).toEqual([
+      ["Alice", "alice@example.com"],
+      ["Bob", ""],
+    ]);
+    expect(data[0]).toEqual({
+      email: "alice@example.com",
+      name: "Alice",
+      id: 1,
+    });
+  });
+
+  it("keeps column renderers, plugins and falsy values aligned with object keys", async () => {
+    const renderName = vi.fn((value: unknown) => `<strong>${value}</strong>`);
+    const renderCount = vi.fn((value: unknown) => `<span>${value}</span>`);
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: [{ active: false, count: 0, name: "Alice" }],
+      columns: [
+        { name: "name", label: "Name", func: renderName, width: "150px" },
+        { name: "count", label: "Count" },
+        {
+          name: "active",
+          label: "Active",
+          classes: { element: "active-cell" },
+        },
+      ],
+      plugins: [{ field: "count", transform: renderCount }],
+    });
+    await flushPromises();
+
+    const cells = getAllTds();
+    expect(cells.map(cell => cell.textContent)).toEqual([
+      "Alice",
+      "0",
+      "false",
+    ]);
+    expect(cells[0].innerHTML).toBe("<strong>Alice</strong>");
+    expect(cells[0].style.width).toBe("150px");
+    expect(cells[1].innerHTML).toBe("<span>0</span>");
+    expect(cells[2].classList.contains("active-cell")).toBe(true);
+    expect(renderName).toHaveBeenCalledWith("Alice", {
+      active: false,
+      count: 0,
+      name: "Alice",
+    });
+    expect(renderCount.mock.calls[0][0]).toBe(0);
+  });
+
+  it("preserves positional rendering for array rows", async () => {
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: [["Alice", "alice@example.com"]],
+      columns: [
+        { name: "data1", label: "Name" },
+        { name: "data2", label: "Email" },
+      ],
+    });
+    await flushPromises();
+    expect(getAllTds().map(cell => cell.textContent)).toEqual([
+      "Alice",
+      "alice@example.com",
+    ]);
+  });
 
   it("applies column width to <th> elements", async () => {
     instance = new EzyTables({
