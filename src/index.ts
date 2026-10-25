@@ -1157,10 +1157,18 @@ export class EzyTables {
 
         // Check if row is an array or an object
         const isRowArray = Array.isArray(row);
-        const values = isRowArray ? row : Object.values(row);
         const keys = isRowArray
-          ? values.map((_, index) => `data${index + 1}`)
+          ? row.map((_, index) => `data${index + 1}`)
+          : this.columns.length > 0
+          ? this.columns.map(column => column.name)
           : Object.keys(row);
+        const values = isRowArray
+          ? row
+          : keys.map(key =>
+              Object.prototype.hasOwnProperty.call(row, key)
+                ? (row as Record<string, unknown>)[key] ?? ""
+                : ""
+            );
 
         values.forEach((value, index) => {
           const td = document.createElement("td");
@@ -1205,7 +1213,7 @@ export class EzyTables {
             if (pluginTransformed) {
               td.innerHTML = value;
             } else {
-              td.textContent = value;
+              td.textContent = String(value);
             }
           }
           tr.appendChild(td);
