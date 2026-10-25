@@ -499,7 +499,7 @@ export class EzyTables {
       const startIndex = (this.currentPage - 1) * this.perPage + 1;
       const endIndex = Math.min(startIndex + this.perPage - 1, totalItems);
       filteredItems = ` (filtered from ${this._data.length} total items)`;
-      return `Showing ${startIndex} to ${endIndex} of ${totalItems} items ${filteredItems}.`;
+      return `Showing ${startIndex} to ${endIndex} of ${totalItems} items${filteredItems}.`;
     } else {
       const totalItems = this.getTotalItems();
       if (totalItems === 0) {
@@ -507,7 +507,7 @@ export class EzyTables {
       }
       const startIndex = (this.currentPage - 1) * this.perPage + 1;
       const endIndex = Math.min(startIndex + this.perPage - 1, totalItems);
-      return `Showing ${startIndex} to ${endIndex} of ${totalItems} items ${filteredItems}.`;
+      return `Showing ${startIndex} to ${endIndex} of ${totalItems} items${filteredItems}.`;
     }
   }
 

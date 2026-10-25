@@ -578,8 +578,8 @@ describe("Data Info", () => {
     const { table } = createInstance();
     const info = table.getShowingInfo();
 
-    // perPage is 3, 10 items total, page 1 → "Showing 1 to 3 of 10 items ."
-    expect(info).toContain("Showing 1 to 3 of 10 items");
+    // perPage is 3, 10 items total, page 1 → "Showing 1 to 3 of 10 items."
+    expect(info).toBe("Showing 1 to 3 of 10 items.");
   });
 
   it("getShowingInfo() returns correct string for last page with partial items", () => {
@@ -590,8 +590,8 @@ describe("Data Info", () => {
 
     const info = table.getShowingInfo();
     // Page 4: startIndex = 10, endIndex = min(12, 10) = 10
-    // "Showing 10 to 10 of 10 items ."
-    expect(info).toContain("Showing 10 to 10 of 10 items");
+    // "Showing 10 to 10 of 10 items."
+    expect(info).toBe("Showing 10 to 10 of 10 items.");
   });
 
   it("getShowingInfo() returns 'No items to show' when data is empty", () => {
@@ -609,8 +609,9 @@ describe("Data Info", () => {
     await vi.advanceTimersByTimeAsync(300);
 
     const info = table.getShowingInfo();
-    expect(info).toContain("filtered from");
-    expect(info).toContain("total items");
+    expect(info).toMatch(
+      /^Showing \d+ to \d+ of \d+ items \(filtered from \d+ total items\)\.$/
+    );
 
     vi.useRealTimers();
   });
