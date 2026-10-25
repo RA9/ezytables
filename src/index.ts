@@ -1164,7 +1164,11 @@ export class EzyTables {
           : Object.keys(row);
         const values = isRowArray
           ? row
-          : keys.map(key => (row as Record<string, unknown>)[key] ?? "");
+          : keys.map(key =>
+              Object.prototype.hasOwnProperty.call(row, key)
+                ? (row as Record<string, unknown>)[key] ?? ""
+                : ""
+            );
 
         values.forEach((value, index) => {
           const td = document.createElement("td");

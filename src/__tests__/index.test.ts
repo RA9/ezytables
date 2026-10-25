@@ -937,6 +937,30 @@ describe("Column Properties (DOM rendering)", () => {
     ]);
   });
 
+  it("treats inherited object properties as missing column keys", async () => {
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: [
+        { name: "Alice" },
+        { name: "Bob", constructor: "builder", toString: "label" },
+      ],
+      columns: [
+        { name: "name", label: "Name" },
+        { name: "constructor", label: "Constructor" },
+        { name: "toString", label: "Text" },
+      ],
+    });
+    await flushPromises();
+    expect(getAllTds().map(cell => cell.textContent)).toEqual([
+      "Alice",
+      "",
+      "",
+      "Bob",
+      "builder",
+      "label",
+    ]);
+  });
+
   it("applies column width to <th> elements", async () => {
     instance = new EzyTables({
       target: "#test-col-table",
