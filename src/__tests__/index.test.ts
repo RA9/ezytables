@@ -532,6 +532,47 @@ describe("Target Table Sorting UI", () => {
     expect(getRenderedNames()).toEqual(["Charlie", "Bob", "Alice"]);
   });
 
+  it("renders labels from the columns option as text", async () => {
+    createTargetTableInstance({
+      columns: [
+        { name: "name", label: '<img src=x onerror="alert(1)">Name' },
+        { name: "email", label: "Email" },
+      ],
+    });
+    await flushPromises();
+
+    const th = document.querySelector(".ezy-tables th") as HTMLElement;
+    expect(th.querySelector("img")).toBeNull();
+    expect(th.textContent).toBe('<img src=x onerror="alert(1)">Name');
+  });
+
+  it("keeps HTML in labels read from an existing table's header markup", async () => {
+    document.body.innerHTML = `
+      <table id="markup-table">
+        <thead><tr><th data-name="name">Name <em>(full)</em></th></tr></thead>
+        <tbody><tr><td>Alice</td></tr></tbody>
+      </table>`;
+    new EzyTables({ target: "#markup-table" });
+    await flushPromises();
+
+    const th = document.querySelector(".ezy-tables th") as HTMLElement;
+    expect(th.querySelector("em")?.textContent).toBe("(full)");
+  });
+
+  it("hides the sort indicator from assistive technology", async () => {
+    const { table } = createTargetTableInstance();
+    await flushPromises();
+
+    table.sortData("name", "asc");
+    await flushPromises();
+
+    const th = document.querySelector(".ezy-tables th") as HTMLElement;
+    const indicator = th.querySelector(".ezy-tables-sort-indicator");
+    expect(indicator?.getAttribute("aria-hidden")).toBe("true");
+    expect(indicator?.textContent).toBe(" ▲");
+    expect(th.getAttribute("aria-sort")).toBe("ascending");
+  });
+
   it("falls back to column.name when sortField is not provided", async () => {
     const { table } = createTargetTableInstance({
       columns: [

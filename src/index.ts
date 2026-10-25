@@ -132,6 +132,7 @@ export class EzyTables {
   private onDataChange?: (newData: any[]) => void;
   private dataChangeNotificationScheduled = false;
   private destroyed = false;
+  private headerLabelsFromMarkup = false;
   private sanitizePluginOutput: boolean;
 
   constructor(opts: EzyTablesOptions) {
@@ -741,6 +742,7 @@ export class EzyTables {
         return column;
       }
     );
+    this.headerLabelsFromMarkup = true;
 
     return this.columns;
   }
@@ -1186,7 +1188,24 @@ export class EzyTables {
       th.setAttribute("data-name", column.name);
       th.setAttribute("data-label", column.label);
       th.setAttribute("scope", "col");
-      th.innerHTML = `${column.label}${sortIndicator}`;
+
+      // Labels read from the page's own <th> markup keep their HTML; labels
+      // passed in through the columns option may come from untrusted data,
+      // so they are rendered as text.
+      if (this.headerLabelsFromMarkup) {
+        th.innerHTML = column.label;
+      } else {
+        th.textContent = column.label;
+      }
+
+      // aria-sort already conveys the sort state to assistive technology
+      if (sortIndicator) {
+        const indicator = document.createElement("span");
+        indicator.classList.add("ezy-tables-sort-indicator");
+        indicator.setAttribute("aria-hidden", "true");
+        indicator.textContent = sortIndicator;
+        th.appendChild(indicator);
+      }
 
       // apply column width
       if (column.width) {
