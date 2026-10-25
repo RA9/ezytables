@@ -107,6 +107,88 @@ describe("Constructor & Initialization", () => {
     expect(renderFn).toHaveBeenCalled();
     expect(renderFn).toHaveBeenCalledWith(expect.any(Array));
   });
+
+  describe("client/server mode selection", () => {
+    const serverRows = [{ name: "From server" }];
+    let fetchMock: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      fetchMock = vi.fn(async () => ({
+        ok: true,
+        json: async () => serverRows,
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("defaults to client mode when clientEnabled is omitted", async () => {
+      const renderFn = vi.fn();
+      new EzyTables({
+        data: [{ name: "Alice" }, { name: "Bob" }],
+        renderFunction: renderFn,
+      });
+      await flushPromises();
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(renderFn).toHaveBeenLastCalledWith([
+        { name: "Alice" },
+        { name: "Bob" },
+      ]);
+    });
+
+    it("uses server mode when server.api_url is set and clientEnabled is omitted", async () => {
+      const renderFn = vi.fn();
+      new EzyTables({
+        server: {
+          api_url: "https://api.example.com/users",
+          limit: 10,
+          page: 1,
+          dataNames: "",
+        },
+        renderFunction: renderFn,
+      });
+      await flushPromises();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        "https://api.example.com/users",
+        expect.objectContaining({ method: "GET" })
+      );
+      expect(renderFn).toHaveBeenLastCalledWith(serverRows);
+    });
+
+    it("lets an explicit clientEnabled override the server config", async () => {
+      const server = {
+        api_url: "https://api.example.com/users",
+        limit: 10,
+        page: 1,
+        dataNames: "",
+      };
+
+      const clientRender = vi.fn();
+      new EzyTables({
+        clientEnabled: true,
+        data: [{ name: "Alice" }],
+        server,
+        renderFunction: clientRender,
+      });
+      await flushPromises();
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(clientRender).toHaveBeenLastCalledWith([{ name: "Alice" }]);
+
+      const serverRender = vi.fn();
+      new EzyTables({
+        clientEnabled: false,
+        server,
+        renderFunction: serverRender,
+      });
+      await flushPromises();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(serverRender).toHaveBeenLastCalledWith(serverRows);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

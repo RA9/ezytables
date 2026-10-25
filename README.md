@@ -165,7 +165,7 @@ should use classes instead (or set `sanitize: false` for trusted HTML).
 
 ```typescript
 interface EasyTablesOptions {
-  clientEnabled?: boolean; // Enable client-side mode (default: true)
+  clientEnabled?: boolean; // Use client-side data (default: true, or false when server.api_url is set)
   data?: any[]; // Data source array
   target?: string; // CSS selector for existing table
   renderFunction?: (data) => void; // Custom render callback
