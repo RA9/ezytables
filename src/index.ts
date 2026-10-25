@@ -52,7 +52,7 @@ export interface Classes {
 }
 
 export interface EzyTablesOptions {
-  clientEnabled?: boolean; // Enable or disable client-side data fetching (default: true)
+  clientEnabled?: boolean; // Use client-side data (default: true, or false when server.api_url is set)
   data?: any[]; // Data source (only for client-side)
   server?: {
     api_url: string; // API URL for server-side data fetching
@@ -133,11 +133,18 @@ export class EzyTables {
   private destroyed = false;
 
   constructor(opts: EzyTablesOptions) {
+    // An explicit clientEnabled wins; otherwise use server mode only when a
+    // server API URL is configured.
+    const usesServer =
+      opts.clientEnabled === undefined
+        ? Boolean(opts.server?.api_url)
+        : !opts.clientEnabled;
     this.serverEnabled =
-      opts.target && opts.target?.length > 0 ? false : !opts.clientEnabled;
+      opts.target && opts.target?.length > 0 ? false : usesServer;
 
     if (
       opts.clientEnabled ||
+      (!opts.target && !this.serverEnabled) ||
       (opts.target && opts.data && opts.data?.length > 0)
     ) {
       this._data = this.createDataProxy(opts.data || [], !opts.target);
