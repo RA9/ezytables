@@ -811,6 +811,63 @@ describe("Destroy", () => {
       addListenerSpy.mockRestore();
     }
   });
+
+  it("destroy() cancels a pending debounced search", async () => {
+    vi.useFakeTimers();
+    try {
+      const onSearch = vi.fn();
+      const { table } = createTargetTableInstance({ onSearch });
+      await vi.advanceTimersByTimeAsync(0);
+
+      table.setSearchDebounced("Alice");
+      table.destroy();
+
+      await expect(vi.advanceTimersByTimeAsync(300)).resolves.not.toThrow();
+      expect(onSearch).not.toHaveBeenCalled();
+      expect(document.querySelector(".ezy-tables-container")).toBeNull();
+      expect(
+        (document.getElementById("target-table") as HTMLElement).style.display
+      ).toBe("");
+    } finally {
+      vi.useRealTimers();
+      document.body.innerHTML = "";
+    }
+  });
+
+  it("public methods are safe no-ops after destroy() in target-table mode", async () => {
+    const { table } = createTargetTableInstance();
+    await flushPromises();
+
+    table.destroy();
+
+    expect(() => {
+      table.setPerPage(5);
+      table.goToPage(1);
+      table.nextPage();
+      table.prevPage();
+      table.sortData("name", "desc");
+      table.setData([{ name: "Zed", email: "zed@example.com" }]);
+    }).not.toThrow();
+    await flushPromises();
+
+    expect(document.querySelector(".ezy-tables-container")).toBeNull();
+    document.body.innerHTML = "";
+  });
+
+  it("does not re-insert the table when destroyed during initial render", async () => {
+    document.body.innerHTML = `
+      <table id="html-table">
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td>Alice</td></tr></tbody>
+      </table>`;
+    const table = new EzyTables({ target: "#html-table" });
+    // destroy before the constructor's async render has completed
+    table.destroy();
+    await flushPromises();
+
+    expect(document.querySelector(".ezy-tables-container")).toBeNull();
+    document.body.innerHTML = "";
+  });
 });
 
 // ---------------------------------------------------------------------------
