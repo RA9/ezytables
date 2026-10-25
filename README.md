@@ -138,8 +138,28 @@ const table = new EzyTables({
   data: myData,
   plugins: [datePlugin],
   target: "#myTable",
+  sanitize: true, // default: sanitize plugin HTML before inserting it
 });
 ```
+
+> [!WARNING]
+> Plugin `transform()` results are inserted into the cell as HTML, not text.
+> EzyTables sanitizes plugin output by default before assigning it to
+> `innerHTML`. Set `sanitize: false` only when the returned HTML is fully
+> trusted.
+
+The built-in sanitizer:
+
+- removes `<script>`, `<iframe>`, `<object>`, `<embed>`, `<link>`, `<meta>`,
+  `<style>` and `<base>`, plus SVG animation elements (`<animate>`, `<set>`,
+  `<animateMotion>`, `<animateTransform>`)
+- strips inline event handlers (`on*`), `style` and `srcdoc` attributes
+- keeps relative URLs and `http:`, `https:`, `mailto:` and `tel:` URLs in
+  `href`, `src`, `xlink:href`, `action` and `formaction`, and removes any other
+  scheme (such as `javascript:` or `data:`) and protocol-relative `//` URLs
+
+Because inline `style` attributes are removed, plugins that style their output
+should use classes instead (or set `sanitize: false` for trusted HTML).
 
 ## Constructor Options
 
@@ -172,6 +192,7 @@ interface EasyTablesOptions {
   onSearch?: (query: string, resultCount: number) => void;
   onSort?: (field: string, order: "asc" | "desc") => void;
   onDataChange?: (newData: any[]) => void;
+  sanitize?: boolean; // Sanitize plugin transform HTML before assigning innerHTML (default: true)
 }
 ```
 

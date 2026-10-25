@@ -80,6 +80,7 @@ export interface EzyTablesOptions {
   onSearch?: (query: string, resultCount: number) => void;
   onSort?: (field: string, order: "asc" | "desc") => void;
   onDataChange?: (newData: any[]) => void;
+  sanitize?: boolean; // Sanitize plugin transform HTML before assigning innerHTML (default: true)
 }
 
 export enum DataMode {
@@ -131,6 +132,7 @@ export class EzyTables {
   private onDataChange?: (newData: any[]) => void;
   private dataChangeNotificationScheduled = false;
   private destroyed = false;
+  private sanitizePluginOutput: boolean;
 
   constructor(opts: EzyTablesOptions) {
     this.serverEnabled =
@@ -167,6 +169,7 @@ export class EzyTables {
     this.onSearch = opts.onSearch;
     this.onSort = opts.onSort;
     this.onDataChange = opts.onDataChange;
+    this.sanitizePluginOutput = opts.sanitize !== false;
 
     this.perPage =
       this.serverEnabled && !opts.target
@@ -202,6 +205,81 @@ export class EzyTables {
 
   public registerPlugin(plugin: Plugin): void {
     this.plugins.push(plugin);
+  }
+
+  // Returns the sanitized nodes rather than an HTML string, so the result is
+  // inserted as-is instead of being re-parsed (which can mutate markup that
+  // already passed sanitization).
+  private sanitizeHTML(html: unknown): DocumentFragment {
+    const template = document.createElement("template");
+    template.innerHTML = String(html ?? "");
+
+    // Compared by lower-cased localName because SVG tag names are
+    // case-sensitive (e.g. animateMotion) and CSS selectors would miss them.
+    // SVG animation elements can rewrite attributes such as href after
+    // sanitization, so they are removed entirely.
+    const blockedTags = new Set([
+      "script",
+      "iframe",
+      "object",
+      "embed",
+      "link",
+      "meta",
+      "style",
+      "base",
+      "animate",
+      "animatemotion",
+      "animatetransform",
+      "set",
+    ]);
+
+    template.content.querySelectorAll("*").forEach(element => {
+      if (blockedTags.has(element.localName.toLowerCase())) {
+        element.remove();
+        return;
+      }
+
+      Array.from(element.attributes).forEach(attribute => {
+        const name = attribute.name.toLowerCase();
+        const value = attribute.value.trim();
+
+        if (name.startsWith("on") || name === "srcdoc" || name === "style") {
+          element.removeAttribute(attribute.name);
+          return;
+        }
+
+        if (
+          ["href", "src", "xlink:href", "formaction", "action"].includes(
+            name
+          ) &&
+          this.isUnsafeUrl(value)
+        ) {
+          element.removeAttribute(attribute.name);
+        }
+      });
+    });
+
+    return template.content;
+  }
+
+  private isUnsafeUrl(value: string): boolean {
+    // Browsers ignore control characters and whitespace in URL schemes
+    // (e.g. "java\tscript:"), so strip them before checking the scheme.
+    const normalizedValue = value
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001f\u007f-\u009f\s]+/g, "")
+      .toLowerCase();
+
+    if (!normalizedValue) return false;
+
+    // Protocol-relative URLs can point at any host
+    if (normalizedValue.startsWith("//")) return true;
+
+    // No scheme means a relative URL (e.g. "details.html", "#top", "/a")
+    const scheme = /^([a-z][a-z0-9+.-]*):/.exec(normalizedValue);
+    if (!scheme) return false;
+
+    return !["http", "https", "mailto", "tel"].includes(scheme[1]);
   }
 
   // Private method to filter data based on search query
@@ -1253,7 +1331,11 @@ export class EzyTables {
             });
 
             if (pluginTransformed) {
-              td.innerHTML = value;
+              if (this.sanitizePluginOutput) {
+                td.replaceChildren(this.sanitizeHTML(value));
+              } else {
+                td.innerHTML = String(value ?? "");
+              }
             } else {
               td.textContent = String(value);
             }

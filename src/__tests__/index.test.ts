@@ -843,6 +843,119 @@ describe("Plugin System", () => {
 
     expect(() => table.registerPlugin(plugin2)).not.toThrow();
   });
+
+  it("sanitizes plugin transform HTML by default", async () => {
+    document.body.innerHTML = '<table id="plugin-table"></table>';
+
+    const table = new EzyTables({
+      target: "#plugin-table",
+      data: [{ name: "Alice" }],
+      columns: [{ name: "name", label: "Name" }],
+      plugins: [
+        {
+          name: "html",
+          field: "name",
+          transform: (value: any) =>
+            `<base href="https://evil.example/"><a href="&#x64;ata:text/html,alert(1)" onclick="alert(1)" style="color:red"><strong>${value}</strong></a><script>alert(1)</script>`,
+        },
+      ],
+    });
+
+    await flushPromises();
+
+    const cell = document.querySelector(
+      "tbody td"
+    ) as HTMLTableCellElement | null;
+    expect(cell).not.toBeNull();
+    expect(cell?.innerHTML).toBe("<a><strong>Alice</strong></a>");
+    expect(cell?.innerHTML).not.toContain("script");
+    expect(cell?.innerHTML).not.toContain("base");
+
+    table.destroy();
+    document.body.innerHTML = "";
+  });
+
+  async function renderPluginCell(html: string): Promise<HTMLElement> {
+    document.body.innerHTML = '<table id="plugin-table"></table>';
+    const table = new EzyTables({
+      target: "#plugin-table",
+      data: [{ name: "Alice" }],
+      columns: [{ name: "name", label: "Name" }],
+      plugins: [{ name: "html", field: "name", transform: () => html }],
+    });
+    await flushPromises();
+    const cell = document.querySelector("tbody td") as HTMLElement;
+    const clone = cell.cloneNode(true) as HTMLElement;
+    table.destroy();
+    document.body.innerHTML = "";
+    return clone;
+  }
+
+  it("strips javascript: URLs from form actions", async () => {
+    const cell = await renderPluginCell(
+      '<form action="javascript:alert(1)"><button>Go</button></form>'
+    );
+    expect(cell.querySelector("form")?.hasAttribute("action")).toBe(false);
+  });
+
+  it("removes SVG animation elements that can rewrite attributes", async () => {
+    const cell = await renderPluginCell(
+      '<svg><a><animate attributeName="href" values="javascript:alert(1)"></animate><set attributeName="href" to="javascript:alert(1)"></set><animateMotion></animateMotion><text>x</text></a></svg>'
+    );
+    expect(cell.querySelector("svg")).not.toBeNull();
+    expect(cell.querySelector("text")?.textContent).toBe("x");
+    const animationTags = Array.from(cell.querySelectorAll("*")).filter(el =>
+      ["animate", "set", "animatemotion", "animatetransform"].includes(
+        el.localName.toLowerCase()
+      )
+    );
+    expect(animationTags).toHaveLength(0);
+  });
+
+  it("keeps scheme-less relative URLs and blocks unknown schemes", async () => {
+    const cell = await renderPluginCell(
+      '<a href="details.html?id=1">a</a><img src="images/avatar.png"><a href="page.html#x:y">b</a><a href="java&#x09;script:alert(1)">c</a><a href="custom:thing">d</a>'
+    );
+    const links = cell.querySelectorAll("a");
+    expect(links[0].getAttribute("href")).toBe("details.html?id=1");
+    expect(cell.querySelector("img")?.getAttribute("src")).toBe(
+      "images/avatar.png"
+    );
+    expect(links[1].getAttribute("href")).toBe("page.html#x:y");
+    expect(links[2].hasAttribute("href")).toBe(false);
+    expect(links[3].hasAttribute("href")).toBe(false);
+  });
+
+  it("allows trusted raw plugin HTML when sanitize is false", async () => {
+    document.body.innerHTML = '<table id="plugin-table"></table>';
+
+    const table = new EzyTables({
+      target: "#plugin-table",
+      data: [{ name: "Alice" }],
+      columns: [{ name: "name", label: "Name" }],
+      sanitize: false,
+      plugins: [
+        {
+          name: "html",
+          field: "name",
+          transform: (value: any) =>
+            `<a href="javascript:alert(1)" onclick="alert(1)"><strong>${value}</strong></a>`,
+        },
+      ],
+    });
+
+    await flushPromises();
+
+    const cell = document.querySelector(
+      "tbody td"
+    ) as HTMLTableCellElement | null;
+    expect(cell).not.toBeNull();
+    expect(cell?.innerHTML).toContain('href="javascript:alert(1)"');
+    expect(cell?.innerHTML).toContain('onclick="alert(1)"');
+
+    table.destroy();
+    document.body.innerHTML = "";
+  });
 });
 
 // ---------------------------------------------------------------------------
