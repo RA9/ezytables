@@ -361,6 +361,57 @@ describe("Sorting", () => {
     );
     expect(names).toEqual(sorted);
   });
+
+  it("sorts numeric strings numerically", async () => {
+    const { table, getRenderedData } = createInstance({
+      data: [{ age: "10" }, { age: "9" }, { age: "100" }, { age: "-1" }],
+      client: { limit: 10, perPage: 10 },
+    });
+
+    table.sortData("age", "asc");
+    await flushPromises();
+    expect(getRenderedData().map((item: any) => item.age)).toEqual([
+      "-1",
+      "9",
+      "10",
+      "100",
+    ]);
+
+    table.sortData("age", "desc");
+    await flushPromises();
+    expect(getRenderedData().map((item: any) => item.age)).toEqual([
+      "100",
+      "10",
+      "9",
+      "-1",
+    ]);
+  });
+
+  it("sorts numeric cells read from an existing table numerically", async () => {
+    document.body.innerHTML = `
+      <table id="numeric-table">
+        <thead><tr><th data-name="name">Name</th><th data-name="age">Age</th></tr></thead>
+        <tbody>
+          <tr><td>Alice</td><td>10</td></tr>
+          <tr><td>Bob</td><td>9</td></tr>
+          <tr><td>Charlie</td><td>100</td></tr>
+        </tbody>
+      </table>`;
+    const table = new EzyTables({ target: "#numeric-table" });
+    await flushPromises();
+
+    table.sortData("age", "asc");
+    await flushPromises();
+
+    const ages = Array.from(
+      document.querySelectorAll(".ezy-tables tbody tr")
+    ).map(row => row.children[1].textContent);
+    expect(ages).toEqual(["9", "10", "100"]);
+
+    table.destroy();
+    document.body.innerHTML = "";
+    document.getElementById("ezy-tables-styles")?.remove();
+  });
 });
 
 describe("Target Table Sorting UI", () => {
