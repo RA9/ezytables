@@ -307,10 +307,22 @@ export class EzyTables {
             return 0;
           }
 
-          const varA =
-            typeof a[field] === "string" ? a[field].toUpperCase() : a[field];
-          const varB =
-            typeof b[field] === "string" ? b[field].toUpperCase() : b[field];
+          // Compare numerically when both values are numbers or numeric
+          // strings (e.g. cells read from an existing table's HTML).
+          const numA = this.toSortableNumber(a[field]);
+          const numB = this.toSortableNumber(b[field]);
+          const bothNumeric = numA !== null && numB !== null;
+
+          const varA = bothNumeric
+            ? numA
+            : typeof a[field] === "string"
+            ? a[field].toUpperCase()
+            : a[field];
+          const varB = bothNumeric
+            ? numB
+            : typeof b[field] === "string"
+            ? b[field].toUpperCase()
+            : b[field];
 
           let comparison = 0;
           if (varA > varB) {
@@ -326,6 +338,19 @@ export class EzyTables {
       const endIndex = startIndex + this.perPage;
       return dataToUse.slice(startIndex, endIndex) as any;
     }
+  }
+
+  // Returns the value as a finite number if it is a number or a numeric
+  // string, otherwise null.
+  private toSortableNumber(value: unknown): number | null {
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value === "string" && value.trim() !== "") {
+      const parsed = Number(value.trim());
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
   }
 
   private debounce(func: Function, delay: number) {
