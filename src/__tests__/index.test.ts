@@ -265,6 +265,43 @@ describe("Search", () => {
       email: "bob@example.com",
     });
   });
+
+  it("search matches numeric and boolean values in object data", async () => {
+    const { table, getRenderedData } = createInstance({
+      data: [
+        { name: "Alice", age: 42, active: true },
+        { name: "Bob", age: 7, active: false },
+        { name: "Charlie", age: null, active: false },
+      ],
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    table.setSearchDebounced("42");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(getRenderedData()).toEqual([
+      { name: "Alice", age: 42, active: true },
+    ]);
+
+    table.setSearchDebounced("true");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(getRenderedData()).toEqual([
+      { name: "Alice", age: 42, active: true },
+    ]);
+  });
+
+  it("search does not throw on non-string cells in array data", async () => {
+    const { table, getRenderedData } = createInstance({
+      data: [
+        ["Alice", 42],
+        ["Bob", 7],
+      ],
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    table.setSearchDebounced("7");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(getRenderedData()).toEqual([["Bob", 7]]);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -380,23 +380,32 @@ export class EzyTables {
     data: string[][],
     query: string
   ): string[][] {
+    const normalizedQuery = query.toLowerCase();
     return data.filter(row =>
-      row.some(cell => cell.toLowerCase().includes(query.toLowerCase()))
+      row.some(cell => this.matchesQuery(cell, normalizedQuery))
     );
   }
 
   // Search in an array of objects
   private searchInArrayOfObjects(data: object[], query: string): object[] {
     const cloneData = [].concat(data as any);
+    const normalizedQuery = query.toLowerCase();
 
     const result = cloneData.filter(item =>
-      Object.values(item).some(
-        value =>
-          typeof value === "string" &&
-          value.toLowerCase().includes(query.toLowerCase())
+      Object.values(item).some(value =>
+        this.matchesQuery(value, normalizedQuery)
       )
     );
     return result;
+  }
+
+  // Match primitive values (strings, numbers, booleans, ...) against an
+  // already lower-cased query. null, undefined and nested objects never match.
+  private matchesQuery(value: unknown, normalizedQuery: string): boolean {
+    if (value === null || value === undefined || typeof value === "object") {
+      return false;
+    }
+    return String(value).toLowerCase().includes(normalizedQuery);
   }
 
   public setPerPage(perPage: number): void {
