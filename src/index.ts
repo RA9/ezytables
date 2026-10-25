@@ -130,6 +130,7 @@ export class EzyTables {
   private onSort?: (field: string, order: "asc" | "desc") => void;
   private onDataChange?: (newData: any[]) => void;
   private dataChangeNotificationScheduled = false;
+  private destroyed = false;
 
   constructor(opts: EzyTablesOptions) {
     this.serverEnabled =
@@ -329,14 +330,21 @@ export class EzyTables {
   }
 
   private debounce(func: Function, delay: number) {
-    let timerId: ReturnType<typeof setTimeout>;
+    let timerId: ReturnType<typeof setTimeout> | undefined;
 
-    return function (this: any, ...args: any[]) {
+    const debounced = function (this: any, ...args: any[]) {
       clearTimeout(timerId);
       timerId = setTimeout(() => {
+        timerId = undefined;
         func.apply(this, args);
       }, delay);
     };
+    debounced.cancel = () => {
+      clearTimeout(timerId);
+      timerId = undefined;
+    };
+
+    return debounced;
   }
 
   setSearchDebounced = this.debounce(this.setSearch, 300);
@@ -364,10 +372,7 @@ export class EzyTables {
 
     if (this.targetTable) {
       // If the target is a table, re-render the table
-      document.querySelector(
-        `.${this.dynamicClasses["ezy-tables-container"]}`
-      )!.innerHTML = "";
-      this.initTable();
+      this.rerenderTargetTable();
     }
 
     if (this.renderFunction) {
@@ -417,10 +422,7 @@ export class EzyTables {
 
     if (this.targetTable) {
       // If the target is a table, re-render the table
-      document.querySelector(
-        `.${this.dynamicClasses["ezy-tables-container"]}`
-      )!.innerHTML = "";
-      this.initTable();
+      this.rerenderTargetTable();
     } else {
       this.updateTable(); // Update the table to reflect the change
     }
@@ -442,10 +444,7 @@ export class EzyTables {
 
       if (this.targetTable) {
         // If the target is a table, re-render the table
-        document.querySelector(
-          `.${this.dynamicClasses["ezy-tables-container"]}`
-        )!.innerHTML = "";
-        this.initTable();
+        this.rerenderTargetTable();
       } else {
         this.updateTable(); // Trigger re-render on previous page
       }
@@ -564,17 +563,26 @@ export class EzyTables {
     });
   }
 
+  // Clear the generated container and render the target table again.
+  // No-op after destroy(), when the container no longer exists.
+  private rerenderTargetTable(): void {
+    if (this.destroyed) return;
+    const container = document.querySelector(
+      `.${this.dynamicClasses["ezy-tables-container"]}`
+    );
+    if (container) container.innerHTML = "";
+    this.initTable();
+  }
+
   // Private method to trigger a table update and custom rendering
   private async updateTable(): Promise<void> {
+    if (this.destroyed) return;
     if (this.renderFunction) {
       const data = await this.getData();
       this.renderFunction(data);
     } else if (this.targetTable) {
       // If the target is a table, re-render the table
-      document.querySelector(
-        `.${this.dynamicClasses["ezy-tables-container"]}`
-      )!.innerHTML = "";
-      this.initTable();
+      this.rerenderTargetTable();
     }
   }
 
@@ -1247,7 +1255,7 @@ export class EzyTables {
     }
     const rows = data;
 
-    if (!columns || !rows) return;
+    if (!columns || !rows || this.destroyed) return;
 
     this.replaceTable();
     this.renderTableHeader(columns);
@@ -1372,16 +1380,15 @@ export class EzyTables {
       this.onPageChange?.(this.currentPage, this.getTotalPages());
     }
     if (this.targetTable) {
-      document.querySelector(
-        `.${this.dynamicClasses["ezy-tables-container"]}`
-      )!.innerHTML = "";
-      this.initTable();
+      this.rerenderTargetTable();
     } else {
       this.updateTable();
     }
   }
 
   public destroy(): void {
+    this.destroyed = true;
+    this.setSearchDebounced.cancel();
     this.cleanupDomEventListeners();
     if (this.targetTable) {
       const container = document.querySelector(
@@ -1407,10 +1414,7 @@ export class EzyTables {
     this.onDataChange?.([...this._data]);
     this.triggerPageChangeIfChanged(previousPage, previousTotalPages);
     if (this.targetTable) {
-      document.querySelector(
-        `.${this.dynamicClasses["ezy-tables-container"]}`
-      )!.innerHTML = "";
-      this.initTable();
+      this.rerenderTargetTable();
     } else {
       this.updateTable();
     }
@@ -1421,6 +1425,9 @@ export class EzyTables {
       this.resetDomEventController();
     }
     const data = await this.getData();
+
+    // destroy() may have been called while data was loading
+    if (this.destroyed) return;
 
     if (this.targetTable) {
       this.renderTable(data);
