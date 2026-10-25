@@ -46,9 +46,13 @@ function createTargetTableInstance(overrides: Record<string, any> = {}) {
   const table = new EzyTables({
     target: "#target-table",
     data: [
-      { name: "Charlie", email: "charlie@example.com" },
-      { name: "Alice", email: "alice@example.com" },
-      { name: "Bob", email: "bob@example.com" },
+      {
+        "display-name": "Charlie",
+        name: "Charlie",
+        email: "charlie@example.com",
+      },
+      { "display-name": "Alice", name: "Alice", email: "alice@example.com" },
+      { "display-name": "Bob", name: "Bob", email: "bob@example.com" },
     ],
     columns: [
       {
@@ -261,6 +265,43 @@ describe("Search", () => {
       email: "bob@example.com",
     });
   });
+
+  it("search matches numeric and boolean values in object data", async () => {
+    const { table, getRenderedData } = createInstance({
+      data: [
+        { name: "Alice", age: 42, active: true },
+        { name: "Bob", age: 7, active: false },
+        { name: "Charlie", age: null, active: false },
+      ],
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    table.setSearchDebounced("42");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(getRenderedData()).toEqual([
+      { name: "Alice", age: 42, active: true },
+    ]);
+
+    table.setSearchDebounced("true");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(getRenderedData()).toEqual([
+      { name: "Alice", age: 42, active: true },
+    ]);
+  });
+
+  it("search does not throw on non-string cells in array data", async () => {
+    const { table, getRenderedData } = createInstance({
+      data: [
+        ["Alice", 42],
+        ["Bob", 7],
+      ],
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    table.setSearchDebounced("7");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(getRenderedData()).toEqual([["Bob", 7]]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -320,6 +361,57 @@ describe("Sorting", () => {
     );
     expect(names).toEqual(sorted);
   });
+
+  it("sorts numeric strings numerically", async () => {
+    const { table, getRenderedData } = createInstance({
+      data: [{ age: "10" }, { age: "9" }, { age: "100" }, { age: "-1" }],
+      client: { limit: 10, perPage: 10 },
+    });
+
+    table.sortData("age", "asc");
+    await flushPromises();
+    expect(getRenderedData().map((item: any) => item.age)).toEqual([
+      "-1",
+      "9",
+      "10",
+      "100",
+    ]);
+
+    table.sortData("age", "desc");
+    await flushPromises();
+    expect(getRenderedData().map((item: any) => item.age)).toEqual([
+      "100",
+      "10",
+      "9",
+      "-1",
+    ]);
+  });
+
+  it("sorts numeric cells read from an existing table numerically", async () => {
+    document.body.innerHTML = `
+      <table id="numeric-table">
+        <thead><tr><th data-name="name">Name</th><th data-name="age">Age</th></tr></thead>
+        <tbody>
+          <tr><td>Alice</td><td>10</td></tr>
+          <tr><td>Bob</td><td>9</td></tr>
+          <tr><td>Charlie</td><td>100</td></tr>
+        </tbody>
+      </table>`;
+    const table = new EzyTables({ target: "#numeric-table" });
+    await flushPromises();
+
+    table.sortData("age", "asc");
+    await flushPromises();
+
+    const ages = Array.from(
+      document.querySelectorAll(".ezy-tables tbody tr")
+    ).map(row => row.children[1].textContent);
+    expect(ages).toEqual(["9", "10", "100"]);
+
+    table.destroy();
+    document.body.innerHTML = "";
+    document.getElementById("ezy-tables-styles")?.remove();
+  });
 });
 
 describe("Target Table Sorting UI", () => {
@@ -375,6 +467,116 @@ describe("Target Table Sorting UI", () => {
 
     expect(sortSpy).toHaveBeenCalledWith("name", "asc");
     expect(nameHeader.classList.contains("ezy-tables-sortable")).toBe(true);
+  });
+});
+
+describe("Target Table Accessibility", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+    document.getElementById("ezy-tables-styles")?.remove();
+  });
+
+  it("adds accessible labels and semantics to the generated table UI", async () => {
+    document.body.innerHTML =
+      '<table id="accessible-table" aria-label="Users table"></table>';
+
+    new EzyTables({
+      target: "#accessible-table",
+      data: [
+        { name: "Alice", email: "alice@example.com" },
+        { name: "Bob", email: "bob@example.com" },
+      ],
+      columns: [
+        { name: "name", label: "Name", sortable: true },
+        { name: "email", label: "Email" },
+      ],
+    });
+    await flushPromises();
+
+    const container = document.querySelector(".ezy-tables-container");
+    const table = document.querySelector(".ezy-tables");
+    const searchInput = document.querySelector(
+      ".ezy-tables-search-input"
+    ) as HTMLInputElement;
+    const perPageSelect = document.querySelector(
+      ".ezy-tables-per-page-select"
+    ) as HTMLSelectElement;
+    const prevButton = document.querySelector(
+      'button[aria-label="Previous page"]'
+    ) as HTMLButtonElement;
+    const nextButton = document.querySelector(
+      'button[aria-label="Next page"]'
+    ) as HTMLButtonElement;
+    const currentPage = document.querySelector(
+      '[aria-current="page"]'
+    ) as HTMLElement;
+    const headers = Array.from(document.querySelectorAll(".ezy-tables th"));
+
+    expect(container?.getAttribute("role")).toBe("region");
+    expect(container?.getAttribute("aria-label")).toBe("Users table");
+    expect(table?.getAttribute("aria-label")).toBe("Users table");
+    expect(searchInput.getAttribute("aria-label")).toBe("Search");
+    expect(perPageSelect.getAttribute("aria-label")).toBe("Rows per page");
+    expect(prevButton.getAttribute("aria-disabled")).toBe("true");
+    expect(nextButton.getAttribute("aria-disabled")).toBe("true");
+    expect(currentPage.textContent).toBe("Page 1 of 1");
+    headers.forEach(header => {
+      expect(header.getAttribute("scope")).toBe("col");
+    });
+  });
+
+  it("updates pagination accessibility state as pages change", async () => {
+    document.body.innerHTML = '<table id="paged-table"></table>';
+
+    new EzyTables({
+      target: "#paged-table",
+      data: [
+        { name: "Charlie", email: "charlie@example.com" },
+        { name: "Alice", email: "alice@example.com" },
+        { name: "Bob", email: "bob@example.com" },
+      ],
+      columns: [
+        { name: "name", label: "Name" },
+        { name: "email", label: "Email" },
+      ],
+      client: { limit: 10, perPage: 1 },
+    });
+    await flushPromises();
+
+    const getPrevButton = () =>
+      document.querySelector(
+        'button[aria-label="Previous page"]'
+      ) as HTMLButtonElement;
+    const getNextButton = () =>
+      document.querySelector(
+        'button[aria-label="Next page"]'
+      ) as HTMLButtonElement;
+    const getCurrentPage = () =>
+      document.querySelector('[aria-current="page"]') as HTMLElement;
+    const table = document.querySelector(".ezy-tables");
+
+    expect(table?.getAttribute("aria-label")).toBe("Paged table");
+    expect(getPrevButton().disabled).toBe(true);
+    expect(getPrevButton().getAttribute("aria-disabled")).toBe("true");
+    expect(getNextButton().disabled).toBe(false);
+    expect(getNextButton().getAttribute("aria-disabled")).toBe("false");
+    expect(getCurrentPage().textContent).toBe("Page 1 of 3");
+
+    getNextButton().click();
+    await flushPromises();
+
+    expect(getPrevButton().disabled).toBe(false);
+    expect(getPrevButton().getAttribute("aria-disabled")).toBe("false");
+    expect(getNextButton().disabled).toBe(false);
+    expect(getNextButton().getAttribute("aria-disabled")).toBe("false");
+    expect(getCurrentPage().textContent).toBe("Page 2 of 3");
+
+    getNextButton().click();
+    await flushPromises();
+
+    expect(getNextButton().disabled).toBe(true);
+    expect(getNextButton().getAttribute("aria-disabled")).toBe("true");
+    expect(getCurrentPage().textContent).toBe("Page 3 of 3");
   });
 });
 
@@ -468,8 +670,8 @@ describe("Data Info", () => {
     const { table } = createInstance();
     const info = table.getShowingInfo();
 
-    // perPage is 3, 10 items total, page 1 → "Showing 1 to 3 of 10 items ."
-    expect(info).toContain("Showing 1 to 3 of 10 items");
+    // perPage is 3, 10 items total, page 1 → "Showing 1 to 3 of 10 items."
+    expect(info).toBe("Showing 1 to 3 of 10 items.");
   });
 
   it("getShowingInfo() returns correct string for last page with partial items", () => {
@@ -480,8 +682,8 @@ describe("Data Info", () => {
 
     const info = table.getShowingInfo();
     // Page 4: startIndex = 10, endIndex = min(12, 10) = 10
-    // "Showing 10 to 10 of 10 items ."
-    expect(info).toContain("Showing 10 to 10 of 10 items");
+    // "Showing 10 to 10 of 10 items."
+    expect(info).toBe("Showing 10 to 10 of 10 items.");
   });
 
   it("getShowingInfo() returns 'No items to show' when data is empty", () => {
@@ -499,8 +701,9 @@ describe("Data Info", () => {
     await vi.advanceTimersByTimeAsync(300);
 
     const info = table.getShowingInfo();
-    expect(info).toContain("filtered from");
-    expect(info).toContain("total items");
+    expect(info).toMatch(
+      /^Showing \d+ to \d+ of \d+ items \(filtered from \d+ total items\)\.$/
+    );
 
     vi.useRealTimers();
   });
@@ -559,7 +762,64 @@ describe("Data Management", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. Plugin System
+// 8. Lifecycle Callbacks
+// ---------------------------------------------------------------------------
+describe("Lifecycle Callbacks", () => {
+  it("onPageChange is called when page state changes", async () => {
+    const onPageChange = vi.fn();
+    const { table } = createInstance({ onPageChange });
+    await flushPromises();
+
+    table.nextPage();
+    table.goToPage(4);
+    table.prevPage();
+
+    expect(onPageChange).toHaveBeenNthCalledWith(1, 2, 4);
+    expect(onPageChange).toHaveBeenNthCalledWith(2, 4, 4);
+    expect(onPageChange).toHaveBeenNthCalledWith(3, 3, 4);
+  });
+
+  it("onSearch is called with query and result count", async () => {
+    vi.useFakeTimers();
+    const onSearch = vi.fn();
+    const onPageChange = vi.fn();
+    const { table } = createInstance({ onSearch, onPageChange });
+    await vi.advanceTimersByTimeAsync(0);
+
+    table.setSearchDebounced("User");
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(onSearch).toHaveBeenCalledWith("User", 5);
+    expect(onPageChange).toHaveBeenCalledWith(1, 2);
+
+    vi.useRealTimers();
+  });
+
+  it("onSort is called with field and order", async () => {
+    const onSort = vi.fn();
+    const { table } = createInstance({ onSort });
+    await flushPromises();
+
+    table.sortData("name", "desc");
+
+    expect(onSort).toHaveBeenCalledWith("name", "desc");
+  });
+
+  it("onDataChange is called when data is replaced", async () => {
+    const onDataChange = vi.fn();
+    const { table } = createInstance({ onDataChange });
+    await flushPromises();
+    const newData = [{ name: "Nova", email: "nova@example.com", role: "User" }];
+
+    table.setData(newData);
+    await flushPromises();
+
+    expect(onDataChange).toHaveBeenCalledWith(newData);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Plugin System
 // ---------------------------------------------------------------------------
 describe("Plugin System", () => {
   it("registerPlugin() adds plugin", () => {
@@ -648,7 +908,7 @@ describe("Plugin System", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 9. Destroy
+// 10. Destroy
 // ---------------------------------------------------------------------------
 describe("Destroy", () => {
   it("destroy() cleans up data", () => {
@@ -706,6 +966,63 @@ describe("Destroy", () => {
       addListenerSpy.mockRestore();
     }
   });
+
+  it("destroy() cancels a pending debounced search", async () => {
+    vi.useFakeTimers();
+    try {
+      const onSearch = vi.fn();
+      const { table } = createTargetTableInstance({ onSearch });
+      await vi.advanceTimersByTimeAsync(0);
+
+      table.setSearchDebounced("Alice");
+      table.destroy();
+
+      await expect(vi.advanceTimersByTimeAsync(300)).resolves.not.toThrow();
+      expect(onSearch).not.toHaveBeenCalled();
+      expect(document.querySelector(".ezy-tables-container")).toBeNull();
+      expect(
+        (document.getElementById("target-table") as HTMLElement).style.display
+      ).toBe("");
+    } finally {
+      vi.useRealTimers();
+      document.body.innerHTML = "";
+    }
+  });
+
+  it("public methods are safe no-ops after destroy() in target-table mode", async () => {
+    const { table } = createTargetTableInstance();
+    await flushPromises();
+
+    table.destroy();
+
+    expect(() => {
+      table.setPerPage(5);
+      table.goToPage(1);
+      table.nextPage();
+      table.prevPage();
+      table.sortData("name", "desc");
+      table.setData([{ name: "Zed", email: "zed@example.com" }]);
+    }).not.toThrow();
+    await flushPromises();
+
+    expect(document.querySelector(".ezy-tables-container")).toBeNull();
+    document.body.innerHTML = "";
+  });
+
+  it("does not re-insert the table when destroyed during initial render", async () => {
+    document.body.innerHTML = `
+      <table id="html-table">
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td>Alice</td></tr></tbody>
+      </table>`;
+    const table = new EzyTables({ target: "#html-table" });
+    // destroy before the constructor's async render has completed
+    table.destroy();
+    await flushPromises();
+
+    expect(document.querySelector(".ezy-tables-container")).toBeNull();
+    document.body.innerHTML = "";
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -745,6 +1062,112 @@ describe("Column Properties (DOM rendering)", () => {
   function getAllTds(): HTMLElement[] {
     return Array.from(document.querySelectorAll("tbody td")) as HTMLElement[];
   }
+
+  it("renders object rows in column order with empty cells for missing keys", async () => {
+    const data = [
+      { email: "alice@example.com", name: "Alice", id: 1 },
+      { id: 2, name: "Bob" },
+    ];
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data,
+      columns: [
+        { name: "name", label: "Name" },
+        { name: "email", label: "Email" },
+      ],
+    });
+    await flushPromises();
+
+    const rows = Array.from(document.querySelectorAll("tbody tr"));
+    expect(
+      rows.map(row => Array.from(row.children, cell => cell.textContent))
+    ).toEqual([
+      ["Alice", "alice@example.com"],
+      ["Bob", ""],
+    ]);
+    expect(data[0]).toEqual({
+      email: "alice@example.com",
+      name: "Alice",
+      id: 1,
+    });
+  });
+
+  it("keeps column renderers, plugins and falsy values aligned with object keys", async () => {
+    const renderName = vi.fn((value: unknown) => `<strong>${value}</strong>`);
+    const renderCount = vi.fn((value: unknown) => `<span>${value}</span>`);
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: [{ active: false, count: 0, name: "Alice" }],
+      columns: [
+        { name: "name", label: "Name", func: renderName, width: "150px" },
+        { name: "count", label: "Count" },
+        {
+          name: "active",
+          label: "Active",
+          classes: { element: "active-cell" },
+        },
+      ],
+      plugins: [{ field: "count", transform: renderCount }],
+    });
+    await flushPromises();
+
+    const cells = getAllTds();
+    expect(cells.map(cell => cell.textContent)).toEqual([
+      "Alice",
+      "0",
+      "false",
+    ]);
+    expect(cells[0].innerHTML).toBe("<strong>Alice</strong>");
+    expect(cells[0].style.width).toBe("150px");
+    expect(cells[1].innerHTML).toBe("<span>0</span>");
+    expect(cells[2].classList.contains("active-cell")).toBe(true);
+    expect(renderName).toHaveBeenCalledWith("Alice", {
+      active: false,
+      count: 0,
+      name: "Alice",
+    });
+    expect(renderCount.mock.calls[0][0]).toBe(0);
+  });
+
+  it("preserves positional rendering for array rows", async () => {
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: [["Alice", "alice@example.com"]],
+      columns: [
+        { name: "data1", label: "Name" },
+        { name: "data2", label: "Email" },
+      ],
+    });
+    await flushPromises();
+    expect(getAllTds().map(cell => cell.textContent)).toEqual([
+      "Alice",
+      "alice@example.com",
+    ]);
+  });
+
+  it("treats inherited object properties as missing column keys", async () => {
+    instance = new EzyTables({
+      target: "#test-col-table",
+      data: [
+        { name: "Alice" },
+        { name: "Bob", constructor: "builder", toString: "label" },
+      ],
+      columns: [
+        { name: "name", label: "Name" },
+        { name: "constructor", label: "Constructor" },
+        { name: "toString", label: "Text" },
+      ],
+    });
+    await flushPromises();
+    expect(getAllTds().map(cell => cell.textContent)).toEqual([
+      "Alice",
+      "",
+      "",
+      "Bob",
+      "builder",
+      "label",
+    ]);
+  });
 
   it("applies column width to <th> elements", async () => {
     instance = new EzyTables({

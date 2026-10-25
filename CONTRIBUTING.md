@@ -33,12 +33,13 @@ We welcome contributions in the form of pull requests. If you want to contribute
 2.Clone the forked repository to your local machine:
 
 ```bash
-git clone https://github.com/ra9/easytables.git
+git clone https://github.com/<your-username>/ezytables.git
 ```
 
-3.Create a new branch for your changes:
+3.Create a new branch for your changes, based on `main`:
 
 ```bash
+git checkout main
 git checkout -b feature/your-feature
 ```
 
@@ -54,7 +55,7 @@ git commit -m "Add new feature"
 git push origin feature/your-feature
 ```
 
-6.Create a pull request (PR) from your branch to the main repository. Be sure to provide a detailed description of the changes in the PR.
+6.Create a pull request (PR) from your branch to the `main` branch of the main repository. Be sure to provide a detailed description of the changes in the PR.
 
 Our team will review the PR, suggest any necessary improvements, and merge it when ready.
 

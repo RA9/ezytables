@@ -76,6 +76,10 @@ export interface EzyTablesOptions {
     footer?: boolean;
   };
   perPageOptions?: number[]; // Custom per-page dropdown options (default: [5, 10, 25, 50, 100])
+  onPageChange?: (page: number, totalPages: number) => void;
+  onSearch?: (query: string, resultCount: number) => void;
+  onSort?: (field: string, order: "asc" | "desc") => void;
+  onDataChange?: (newData: any[]) => void;
   sanitize?: boolean; // Sanitize plugin transform HTML before assigning innerHTML (default: true)
 }
 
@@ -122,6 +126,12 @@ export class EzyTables {
   private sortOrder: "asc" | "desc" = "asc";
   private domEventAbortController: AbortController | null = null;
   private perPageOptions: number[];
+  private onPageChange?: (page: number, totalPages: number) => void;
+  private onSearch?: (query: string, resultCount: number) => void;
+  private onSort?: (field: string, order: "asc" | "desc") => void;
+  private onDataChange?: (newData: any[]) => void;
+  private dataChangeNotificationScheduled = false;
+  private destroyed = false;
   private sanitizePluginOutput: boolean;
 
   constructor(opts: EzyTablesOptions) {
@@ -132,22 +142,15 @@ export class EzyTables {
       opts.clientEnabled ||
       (opts.target && opts.data && opts.data?.length > 0)
     ) {
-      this._data = new Proxy(opts.data || [], {
-        set: (target: any, key: string, value) => {
-          target[key] = value;
-          this._filteredDataCache = null;
-          if (!opts.target) {
-            this.updateTable();
-          }
-          return true;
-        },
-      });
+      this._data = this.createDataProxy(opts.data || [], !opts.target);
     }
 
     this.hideDetails = opts.hideDetails || {};
 
     this.htmlClasses = opts.classes || {};
-    const randomId = window.crypto.getRandomValues(new Uint32Array(1))[0];
+    const randomId =
+      globalThis.crypto?.getRandomValues(new Uint32Array(1))?.[0] ??
+      Math.floor(Math.random() * 0xffffffff);
     this.dynamicClasses = {
       "ezy-tables": `ezy-tables-${randomId}`,
       "ezy-tables-container": `ezy-tables-container-${randomId}`,
@@ -162,6 +165,10 @@ export class EzyTables {
 
     this.plugins = opts?.plugins || [];
     this.perPageOptions = opts.perPageOptions || [5, 10, 25, 50, 100];
+    this.onPageChange = opts.onPageChange;
+    this.onSearch = opts.onSearch;
+    this.onSort = opts.onSort;
+    this.onDataChange = opts.onDataChange;
     this.sanitizePluginOutput = opts.sanitize !== false;
 
     this.perPage =
@@ -288,6 +295,7 @@ export class EzyTables {
   sortData(field: string, order: "asc" | "desc" = "asc"): void {
     this.sortField = field;
     this.sortOrder = order;
+    this.onSort?.(field, order);
     this.updateTable();
   }
 
@@ -361,10 +369,22 @@ export class EzyTables {
             return 0;
           }
 
-          const varA =
-            typeof a[field] === "string" ? a[field].toUpperCase() : a[field];
-          const varB =
-            typeof b[field] === "string" ? b[field].toUpperCase() : b[field];
+          // Compare numerically when both values are numbers or numeric
+          // strings (e.g. cells read from an existing table's HTML).
+          const numA = this.toSortableNumber(a[field]);
+          const numB = this.toSortableNumber(b[field]);
+          const bothNumeric = numA !== null && numB !== null;
+
+          const varA = bothNumeric
+            ? numA
+            : typeof a[field] === "string"
+            ? a[field].toUpperCase()
+            : a[field];
+          const varB = bothNumeric
+            ? numB
+            : typeof b[field] === "string"
+            ? b[field].toUpperCase()
+            : b[field];
 
           let comparison = 0;
           if (varA > varB) {
@@ -382,21 +402,43 @@ export class EzyTables {
     }
   }
 
-  private debounce(func: Function, delay: number) {
-    let timerId: ReturnType<typeof setTimeout>;
+  // Returns the value as a finite number if it is a number or a numeric
+  // string, otherwise null.
+  private toSortableNumber(value: unknown): number | null {
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value === "string" && value.trim() !== "") {
+      const parsed = Number(value.trim());
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  }
 
-    return function (this: any, ...args: any[]) {
+  private debounce(func: Function, delay: number) {
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+
+    const debounced = function (this: any, ...args: any[]) {
       clearTimeout(timerId);
       timerId = setTimeout(() => {
+        timerId = undefined;
         func.apply(this, args);
       }, delay);
     };
+    debounced.cancel = () => {
+      clearTimeout(timerId);
+      timerId = undefined;
+    };
+
+    return debounced;
   }
 
   setSearchDebounced = this.debounce(this.setSearch, 300);
 
   // Set the search query
   private setSearch(query: string): void {
+    const previousPage = this.currentPage;
+    const previousTotalPages = this.getTotalPages();
     this.searchQuery = query;
     this.dataMode = DataMode.Filtered;
 
@@ -406,13 +448,17 @@ export class EzyTables {
     }
 
     this.currentPage = 1; // Reset to the first page when searching
+    this.onSearch?.(
+      this.searchQuery,
+      this.dataMode === DataMode.Filtered
+        ? this.filterData().length
+        : this._data.length
+    );
+    this.triggerPageChangeIfChanged(previousPage, previousTotalPages);
 
     if (this.targetTable) {
       // If the target is a table, re-render the table
-      document.querySelector(
-        `.${this.dynamicClasses["ezy-tables-container"]}`
-      )!.innerHTML = "";
-      this.initTable();
+      this.rerenderTargetTable();
     }
 
     if (this.renderFunction) {
@@ -425,35 +471,44 @@ export class EzyTables {
     data: string[][],
     query: string
   ): string[][] {
+    const normalizedQuery = query.toLowerCase();
     return data.filter(row =>
-      row.some(cell => cell.toLowerCase().includes(query.toLowerCase()))
+      row.some(cell => this.matchesQuery(cell, normalizedQuery))
     );
   }
 
   // Search in an array of objects
   private searchInArrayOfObjects(data: object[], query: string): object[] {
     const cloneData = [].concat(data as any);
+    const normalizedQuery = query.toLowerCase();
 
     const result = cloneData.filter(item =>
-      Object.values(item).some(
-        value =>
-          typeof value === "string" &&
-          value.toLowerCase().includes(query.toLowerCase())
+      Object.values(item).some(value =>
+        this.matchesQuery(value, normalizedQuery)
       )
     );
     return result;
   }
 
+  // Match primitive values (strings, numbers, booleans, ...) against an
+  // already lower-cased query. null, undefined and nested objects never match.
+  private matchesQuery(value: unknown, normalizedQuery: string): boolean {
+    if (value === null || value === undefined || typeof value === "object") {
+      return false;
+    }
+    return String(value).toLowerCase().includes(normalizedQuery);
+  }
+
   public setPerPage(perPage: number): void {
+    const previousPage = this.currentPage;
+    const previousTotalPages = this.getTotalPages();
     this.perPage = perPage;
     this.currentPage = 1; // Reset to the first page when changing the per page value
+    this.triggerPageChangeIfChanged(previousPage, previousTotalPages);
 
     if (this.targetTable) {
       // If the target is a table, re-render the table
-      document.querySelector(
-        `.${this.dynamicClasses["ezy-tables-container"]}`
-      )!.innerHTML = "";
-      this.initTable();
+      this.rerenderTargetTable();
     } else {
       this.updateTable(); // Update the table to reflect the change
     }
@@ -463,6 +518,7 @@ export class EzyTables {
   nextPage(): void {
     if (this.currentPage < this.getTotalPages()) {
       this.currentPage++;
+      this.onPageChange?.(this.currentPage, this.getTotalPages());
       this.updateTable(); // Trigger re-render on next page
     }
   }
@@ -470,13 +526,11 @@ export class EzyTables {
   prevPage(): void {
     if (this.currentPage > 1) {
       this.currentPage--;
+      this.onPageChange?.(this.currentPage, this.getTotalPages());
 
       if (this.targetTable) {
         // If the target is a table, re-render the table
-        document.querySelector(
-          `.${this.dynamicClasses["ezy-tables-container"]}`
-        )!.innerHTML = "";
-        this.initTable();
+        this.rerenderTargetTable();
       } else {
         this.updateTable(); // Trigger re-render on previous page
       }
@@ -499,6 +553,33 @@ export class EzyTables {
     return Math.ceil(totalItems / this.perPage);
   }
 
+  private getTableLabel(): string {
+    if (!this.targetTable) {
+      return "EzyTables data table";
+    }
+
+    const ariaLabel = this.targetTable.getAttribute("aria-label")?.trim();
+    if (ariaLabel) {
+      return ariaLabel;
+    }
+
+    const caption = this.targetTable
+      .querySelector("caption")
+      ?.textContent?.trim();
+    if (caption) {
+      return caption;
+    }
+
+    if (this.targetTable.id) {
+      const normalizedId = this.targetTable.id.replace(/[-_]+/g, " ").trim();
+      const readableId =
+        normalizedId.charAt(0).toUpperCase() + normalizedId.slice(1);
+      return /table$/i.test(readableId) ? readableId : `${readableId} table`;
+    }
+
+    return "EzyTables data table";
+  }
+
   // Method to get information about the items being displayed
   getShowingInfo(): string {
     let filteredItems = "";
@@ -512,7 +593,7 @@ export class EzyTables {
       const startIndex = (this.currentPage - 1) * this.perPage + 1;
       const endIndex = Math.min(startIndex + this.perPage - 1, totalItems);
       filteredItems = ` (filtered from ${this._data.length} total items)`;
-      return `Showing ${startIndex} to ${endIndex} of ${totalItems} items ${filteredItems}.`;
+      return `Showing ${startIndex} to ${endIndex} of ${totalItems} items${filteredItems}.`;
     } else {
       const totalItems = this.getTotalItems();
       if (totalItems === 0) {
@@ -520,7 +601,7 @@ export class EzyTables {
       }
       const startIndex = (this.currentPage - 1) * this.perPage + 1;
       const endIndex = Math.min(startIndex + this.perPage - 1, totalItems);
-      return `Showing ${startIndex} to ${endIndex} of ${totalItems} items ${filteredItems}.`;
+      return `Showing ${startIndex} to ${endIndex} of ${totalItems} items${filteredItems}.`;
     }
   }
 
@@ -528,21 +609,66 @@ export class EzyTables {
     if (this.dataMode === DataMode.Filtered) {
       return this.filterData().length;
     }
-
     return this._data.length;
+  }
+
+  private triggerPageChangeIfChanged(
+    previousPage: number,
+    previousTotalPages: number
+  ): void {
+    const totalPages = this.getTotalPages();
+    if (
+      this.currentPage !== previousPage ||
+      totalPages !== previousTotalPages
+    ) {
+      this.onPageChange?.(this.currentPage, totalPages);
+    }
+  }
+
+  private queueDataChangeNotification(): void {
+    if (!this.onDataChange || this.dataChangeNotificationScheduled) return;
+
+    this.dataChangeNotificationScheduled = true;
+    queueMicrotask(() => {
+      this.dataChangeNotificationScheduled = false;
+      this.onDataChange?.([...this._data]);
+    });
+  }
+
+  private createDataProxy(data: any[], shouldUpdate: boolean): any[] {
+    return new Proxy(data, {
+      set: (target: any[], key: string | symbol, value) => {
+        Reflect.set(target, key, value);
+        this._filteredDataCache = null;
+        this.queueDataChangeNotification();
+        if (shouldUpdate) {
+          this.updateTable();
+        }
+        return true;
+      },
+    });
+  }
+
+  // Clear the generated container and render the target table again.
+  // No-op after destroy(), when the container no longer exists.
+  private rerenderTargetTable(): void {
+    if (this.destroyed) return;
+    const container = document.querySelector(
+      `.${this.dynamicClasses["ezy-tables-container"]}`
+    );
+    if (container) container.innerHTML = "";
+    this.initTable();
   }
 
   // Private method to trigger a table update and custom rendering
   private async updateTable(): Promise<void> {
+    if (this.destroyed) return;
     if (this.renderFunction) {
       const data = await this.getData();
       this.renderFunction(data);
     } else if (this.targetTable) {
       // If the target is a table, re-render the table
-      document.querySelector(
-        `.${this.dynamicClasses["ezy-tables-container"]}`
-      )!.innerHTML = "";
-      this.initTable();
+      this.rerenderTargetTable();
     }
   }
 
@@ -631,6 +757,8 @@ export class EzyTables {
   private replaceTable(): void {
     if (!this.targetTable) return;
 
+    const tableLabel = this.getTableLabel();
+
     let tableContainer;
     let table;
     // create the table container if it doesn't exist
@@ -665,7 +793,11 @@ export class EzyTables {
       tableContainer.classList.remove("ezy-tables-container");
     }
 
+    tableContainer.setAttribute("role", "region");
+    tableContainer.setAttribute("aria-label", tableLabel);
+
     table.classList.add(`ezy-tables`, this.dynamicClasses["ezy-tables"]);
+    table.setAttribute("aria-label", tableLabel);
 
     // add table classes if exists
     if (this.htmlClasses.table?.container) {
@@ -793,6 +925,7 @@ export class EzyTables {
 
       const perPageSelect = document.createElement("select");
       perPageSelect.classList.add("ezy-tables-per-page-select");
+      perPageSelect.setAttribute("aria-label", "Rows per page");
 
       const perPageOptions = this.perPageOptions;
 
@@ -867,6 +1000,8 @@ export class EzyTables {
         )!;
       }
 
+      searchInput.setAttribute("aria-label", "Search");
+
       // add search input classes if exists
       if (this.htmlClasses.header?.search?.input) {
         const classes = this.htmlClasses.header.search.input.split(" ");
@@ -935,9 +1070,16 @@ export class EzyTables {
         footerInfo.textContent = this.getShowingInfo() || "";
       }
 
+      const totalPages = Math.max(this.getTotalPages(), 1);
+      const isFirstPage = this.currentPage <= 1;
+      const isLastPage = this.currentPage >= totalPages;
+
       const prevButton = document.createElement("button");
       prevButton.textContent = "Previous";
       prevButton.classList.add("ezy-tables-footer-button");
+      prevButton.setAttribute("aria-label", "Previous page");
+      prevButton.setAttribute("aria-disabled", String(isFirstPage));
+      prevButton.disabled = isFirstPage;
 
       prevButton.addEventListener(
         "click",
@@ -950,6 +1092,9 @@ export class EzyTables {
       const nextButton = document.createElement("button");
       nextButton.textContent = "Next";
       nextButton.classList.add("ezy-tables-footer-button");
+      nextButton.setAttribute("aria-label", "Next page");
+      nextButton.setAttribute("aria-disabled", String(isLastPage));
+      nextButton.disabled = isLastPage;
 
       nextButton.addEventListener(
         "click",
@@ -959,7 +1104,16 @@ export class EzyTables {
         domEventOptions
       );
 
+      const currentPageIndicator = document.createElement("span");
+      currentPageIndicator.classList.add("ezy-tables-footer-page");
+      currentPageIndicator.setAttribute("aria-current", "page");
+      currentPageIndicator.textContent = `Page ${Math.min(
+        this.currentPage,
+        totalPages
+      )} of ${totalPages}`;
+
       footerButtons.appendChild(prevButton);
+      footerButtons.appendChild(currentPageIndicator);
       footerButtons.appendChild(nextButton);
 
       footer.appendChild(footerInfo);
@@ -1007,6 +1161,7 @@ export class EzyTables {
         : "";
       th.setAttribute("data-name", column.name);
       th.setAttribute("data-label", column.label);
+      th.setAttribute("scope", "col");
       th.innerHTML = `${column.label}${sortIndicator}`;
 
       // apply column width
@@ -1105,10 +1260,18 @@ export class EzyTables {
 
         // Check if row is an array or an object
         const isRowArray = Array.isArray(row);
-        const values = isRowArray ? row : Object.values(row);
         const keys = isRowArray
-          ? values.map((_, index) => `data${index + 1}`)
+          ? row.map((_, index) => `data${index + 1}`)
+          : this.columns.length > 0
+          ? this.columns.map(column => column.name)
           : Object.keys(row);
+        const values = isRowArray
+          ? row
+          : keys.map(key =>
+              Object.prototype.hasOwnProperty.call(row, key)
+                ? (row as Record<string, unknown>)[key] ?? ""
+                : ""
+            );
 
         values.forEach((value, index) => {
           const td = document.createElement("td");
@@ -1155,7 +1318,7 @@ export class EzyTables {
                 ? this.sanitizeHTML(value)
                 : String(value ?? "");
             } else {
-              td.textContent = value;
+              td.textContent = String(value);
             }
           }
           tr.appendChild(td);
@@ -1180,7 +1343,7 @@ export class EzyTables {
     }
     const rows = data;
 
-    if (!columns || !rows) return;
+    if (!columns || !rows || this.destroyed) return;
 
     this.replaceTable();
     this.renderTableHeader(columns);
@@ -1299,18 +1462,21 @@ export class EzyTables {
   public goToPage(page: number): void {
     const totalPages = Math.max(1, this.getTotalPages());
     if (page < 1 || page > totalPages) return;
+    const previousPage = this.currentPage;
     this.currentPage = page;
+    if (this.currentPage !== previousPage) {
+      this.onPageChange?.(this.currentPage, this.getTotalPages());
+    }
     if (this.targetTable) {
-      document.querySelector(
-        `.${this.dynamicClasses["ezy-tables-container"]}`
-      )!.innerHTML = "";
-      this.initTable();
+      this.rerenderTargetTable();
     } else {
       this.updateTable();
     }
   }
 
   public destroy(): void {
+    this.destroyed = true;
+    this.setSearchDebounced.cancel();
     this.cleanupDomEventListeners();
     if (this.targetTable) {
       const container = document.querySelector(
@@ -1328,23 +1494,15 @@ export class EzyTables {
   }
 
   public setData(data: any[]): void {
-    this._data = new Proxy(data, {
-      set: (target: any, key: string, value) => {
-        target[key] = value;
-        this._filteredDataCache = null;
-        if (!this.targetTable) {
-          this.updateTable();
-        }
-        return true;
-      },
-    });
+    const previousPage = this.currentPage;
+    const previousTotalPages = this.getTotalPages();
+    this._data = this.createDataProxy(data, !this.targetTable);
     this._filteredDataCache = null;
     this.currentPage = 1;
+    this.onDataChange?.([...this._data]);
+    this.triggerPageChangeIfChanged(previousPage, previousTotalPages);
     if (this.targetTable) {
-      document.querySelector(
-        `.${this.dynamicClasses["ezy-tables-container"]}`
-      )!.innerHTML = "";
-      this.initTable();
+      this.rerenderTargetTable();
     } else {
       this.updateTable();
     }
@@ -1355,6 +1513,9 @@ export class EzyTables {
       this.resetDomEventController();
     }
     const data = await this.getData();
+
+    // destroy() may have been called while data was loading
+    if (this.destroyed) return;
 
     if (this.targetTable) {
       this.renderTable(data);
