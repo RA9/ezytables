@@ -83,6 +83,13 @@ export interface EzyTablesOptions {
   sanitize?: boolean; // Sanitize plugin transform HTML before assigning innerHTML (default: true)
 }
 
+interface FocusSnapshot {
+  find: (root: HTMLElement) => HTMLElement | null;
+  fallback?: (root: HTMLElement) => HTMLElement | null;
+  selectionStart?: number | null;
+  selectionEnd?: number | null;
+}
+
 export enum DataMode {
   Filtered = "filtered",
   Paginated = "paginated",
@@ -134,6 +141,7 @@ export class EzyTables {
   private destroyed = false;
   private headerLabelsFromMarkup = false;
   private tableUpdateScheduled = false;
+  private pendingFocus: FocusSnapshot | null = null;
   private sanitizePluginOutput: boolean;
 
   constructor(opts: EzyTablesOptions) {
@@ -698,11 +706,93 @@ export class EzyTables {
   // No-op after destroy(), when the container no longer exists.
   private rerenderTargetTable(): void {
     if (this.destroyed) return;
-    const container = document.querySelector(
-      `.${this.dynamicClasses["ezy-tables-container"]}`
-    );
+    const container = this.getTableContainer();
+    // Keep a snapshot already taken by an earlier re-render that has not
+    // finished yet; by now its focused control has been removed.
+    this.pendingFocus = this.captureFocus() ?? this.pendingFocus;
     if (container) container.innerHTML = "";
     this.initTable();
+  }
+
+  private getTableContainer(): HTMLElement | null {
+    return document.querySelector(
+      `.${this.dynamicClasses["ezy-tables-container"]}`
+    );
+  }
+
+  // Re-rendering replaces every control, so remember which one had focus
+  // (and the caret position in the search box) to restore it afterwards.
+  private captureFocus(): FocusSnapshot | null {
+    const container = this.getTableContainer();
+    const active = document.activeElement;
+    if (!container || !(active instanceof HTMLElement)) return null;
+    if (!container.contains(active)) return null;
+
+    if (active instanceof HTMLInputElement && active.type === "search") {
+      return {
+        find: root =>
+          root.querySelector<HTMLElement>(
+            `.${this.dynamicClasses["ezy-tables-search-input"]}`
+          ),
+        selectionStart: active.selectionStart,
+        selectionEnd: active.selectionEnd,
+      };
+    }
+
+    if (active instanceof HTMLSelectElement) {
+      return { find: root => root.querySelector<HTMLElement>("select") };
+    }
+
+    const action = active.getAttribute("data-ezy-action");
+    if (action) {
+      const otherAction = action === "prev" ? "next" : "prev";
+      return {
+        find: root =>
+          root.querySelector<HTMLElement>(`[data-ezy-action="${action}"]`),
+        fallback: root =>
+          root.querySelector<HTMLElement>(`[data-ezy-action="${otherAction}"]`),
+      };
+    }
+
+    const columnName = active.closest("th")?.getAttribute("data-name");
+    if (columnName !== null && columnName !== undefined) {
+      return {
+        find: root =>
+          Array.from(root.querySelectorAll<HTMLElement>("th")).find(
+            th => th.getAttribute("data-name") === columnName
+          ) ?? null,
+      };
+    }
+
+    return null;
+  }
+
+  private restorePendingFocus(): void {
+    const snapshot = this.pendingFocus;
+    this.pendingFocus = null;
+    const container = this.getTableContainer();
+    if (!snapshot || !container) return;
+
+    const isFocusable = (element: HTMLElement | null) =>
+      element !== null && !(element as HTMLButtonElement).disabled;
+
+    let target = snapshot.find(container);
+    if (!isFocusable(target)) {
+      target = snapshot.fallback?.(container) ?? null;
+    }
+    if (!target || !isFocusable(target)) return;
+
+    target.focus();
+    if (
+      target instanceof HTMLInputElement &&
+      snapshot.selectionStart !== undefined &&
+      snapshot.selectionStart !== null
+    ) {
+      target.setSelectionRange(
+        snapshot.selectionStart,
+        snapshot.selectionEnd ?? snapshot.selectionStart
+      );
+    }
   }
 
   // Private method to trigger a table update and custom rendering
@@ -1058,9 +1148,6 @@ export class EzyTables {
 
       if (searchInput) {
         searchInput.value = this.searchQuery || "";
-        if (this.searchQuery) {
-          searchInput.focus();
-        }
       }
 
       searchInput.addEventListener(
@@ -1125,6 +1212,7 @@ export class EzyTables {
       prevButton.textContent = "Previous";
       prevButton.classList.add("ezy-tables-footer-button");
       prevButton.setAttribute("aria-label", "Previous page");
+      prevButton.setAttribute("data-ezy-action", "prev");
       prevButton.setAttribute("aria-disabled", String(isFirstPage));
       prevButton.disabled = isFirstPage;
 
@@ -1140,6 +1228,7 @@ export class EzyTables {
       nextButton.textContent = "Next";
       nextButton.classList.add("ezy-tables-footer-button");
       nextButton.setAttribute("aria-label", "Next page");
+      nextButton.setAttribute("data-ezy-action", "next");
       nextButton.setAttribute("aria-disabled", String(isLastPage));
       nextButton.disabled = isLastPage;
 
@@ -1260,14 +1349,24 @@ export class EzyTables {
               : "descending"
             : "none"
         );
+        const toggleSort = () => {
+          const nextOrder =
+            this.sortField === sortField && this.sortOrder === "asc"
+              ? "desc"
+              : "asc";
+          this.sortData(sortField, nextOrder);
+        };
+
+        // Make the header reachable and operable from the keyboard
+        th.tabIndex = 0;
+        th.addEventListener("click", toggleSort, domEventOptions);
         th.addEventListener(
-          "click",
-          () => {
-            const nextOrder =
-              this.sortField === sortField && this.sortOrder === "asc"
-                ? "desc"
-                : "asc";
-            this.sortData(sortField, nextOrder);
+          "keydown",
+          (e: KeyboardEvent) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              toggleSort();
+            }
           },
           domEventOptions
         );
@@ -1414,6 +1513,7 @@ export class EzyTables {
     this.replaceTable();
     this.renderTableHeader(columns);
     this.renderTableBody(rows);
+    this.restorePendingFocus();
   }
 
   private addStyles() {

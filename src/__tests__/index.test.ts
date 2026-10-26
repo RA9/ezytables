@@ -668,6 +668,134 @@ describe("Target Table Accessibility", () => {
     });
   });
 
+  describe("focus preservation", () => {
+    const button = (action: "prev" | "next") =>
+      document.querySelector(
+        `.ezy-tables-container [data-ezy-action="${action}"]`
+      ) as HTMLButtonElement;
+
+    it("keeps focus on Next after moving to another page", async () => {
+      createTargetTableInstance({ client: { limit: 10, perPage: 1 } });
+      await flushPromises();
+
+      button("next").focus();
+      button("next").click();
+      await flushPromises();
+
+      expect(document.activeElement).toBe(button("next"));
+      expect(button("next").isConnected).toBe(true);
+    });
+
+    it("moves focus to Previous when Next becomes disabled", async () => {
+      createTargetTableInstance({ client: { limit: 10, perPage: 2 } });
+      await flushPromises();
+
+      button("next").focus();
+      button("next").click();
+      await flushPromises();
+
+      expect(button("next").disabled).toBe(true);
+      expect(document.activeElement).toBe(button("prev"));
+    });
+
+    it("does not move focus to the search box on page change while searching", async () => {
+      vi.useFakeTimers();
+      try {
+        const { table } = createTargetTableInstance({
+          client: { limit: 10, perPage: 1 },
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        table.setSearchDebounced("example.com");
+        await vi.advanceTimersByTimeAsync(300);
+
+        button("next").focus();
+        button("next").click();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(document.activeElement).toBe(button("next"));
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("keeps focus and caret position in the search box while typing", async () => {
+      vi.useFakeTimers();
+      try {
+        createTargetTableInstance();
+        await vi.advanceTimersByTimeAsync(0);
+
+        const input = document.querySelector(
+          ".ezy-tables-search-input"
+        ) as HTMLInputElement;
+        input.focus();
+        input.value = "alice";
+        input.setSelectionRange(2, 2);
+        input.dispatchEvent(new Event("input"));
+        await vi.advanceTimersByTimeAsync(300);
+
+        const newInput = document.querySelector(
+          ".ezy-tables-search-input"
+        ) as HTMLInputElement;
+        expect(newInput).not.toBe(input);
+        expect(document.activeElement).toBe(newInput);
+        expect(newInput.value).toBe("alice");
+        expect(newInput.selectionStart).toBe(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("keeps focus on the per-page select after changing it", async () => {
+      createTargetTableInstance();
+      await flushPromises();
+
+      const select = document.querySelector(
+        ".ezy-tables-per-page-select"
+      ) as HTMLSelectElement;
+      select.focus();
+      select.value = "5";
+      select.dispatchEvent(new Event("change"));
+      await flushPromises();
+
+      const newSelect = document.querySelector(
+        ".ezy-tables-per-page-select"
+      ) as HTMLSelectElement;
+      expect(document.activeElement).toBe(newSelect);
+      expect(newSelect.value).toBe("5");
+    });
+
+    it("sorts from the keyboard and keeps focus on the header", async () => {
+      const { table } = createTargetTableInstance();
+      await flushPromises();
+      const sortSpy = vi.spyOn(table, "sortData");
+
+      const header = document.querySelector(
+        '.ezy-tables th[data-name="display-name"]'
+      ) as HTMLElement;
+      expect(header.tabIndex).toBe(0);
+
+      header.focus();
+      header.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      );
+      await flushPromises();
+
+      expect(sortSpy).toHaveBeenCalledWith("name", "asc");
+      const newHeader = document.querySelector(
+        '.ezy-tables th[data-name="display-name"]'
+      ) as HTMLElement;
+      expect(newHeader.getAttribute("aria-sort")).toBe("ascending");
+      expect(document.activeElement).toBe(newHeader);
+
+      newHeader.dispatchEvent(
+        new KeyboardEvent("keydown", { key: " ", bubbles: true })
+      );
+      await flushPromises();
+      expect(sortSpy).toHaveBeenLastCalledWith("name", "desc");
+    });
+  });
+
   it("updates pagination accessibility state as pages change", async () => {
     document.body.innerHTML = '<table id="paged-table"></table>';
 
