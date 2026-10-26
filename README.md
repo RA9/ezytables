@@ -161,6 +161,11 @@ The built-in sanitizer:
 Because inline `style` attributes are removed, plugins that style their output
 should use classes instead (or set `sanitize: false` for trusted HTML).
 
+Column labels passed in through the `columns` option are rendered as plain
+text, so they are safe to build from user or API data. When EzyTables reads
+the columns from an existing table's `<th>` elements, those labels keep their
+HTML, since that markup is already part of your page.
+
 ## Constructor Options
 
 ```typescript
