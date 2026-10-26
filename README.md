@@ -10,7 +10,7 @@ A minimalistic, zero-dependency JavaScript/TypeScript library for creating react
 ## Features
 
 - **Zero Dependencies** — Lightweight (~5KB), no external libraries required
-- **Reactive Data** — Uses Proxy for automatic table updates when data changes
+- **Reactive Data** — Change `table.data` (push, splice, sort, ...) and the table updates automatically
 - **Built-in Search** — Debounced search across all fields (case-insensitive)
 - **Column Sorting** — Sort ascending or descending on any column
 - **Pagination** — Configurable items-per-page with navigation controls
@@ -115,7 +115,27 @@ const table = new EzyTables({
 | `registerPlugin(plugin)`    | `void`       | Register a data transform plugin                       |
 | `setData(data)`             | `void`       | Replace the data source                                |
 | `getRawData()`              | `any[]`      | Get a copy of the raw data                             |
+| `data` (property)           | `any[]`      | The live, reactive data array (see below)              |
 | `destroy()`                 | `void`       | Clean up and remove the table                          |
+
+### Reactive data
+
+`table.data` is the live data array. Changing it re-renders the table and
+calls `onDataChange`. Several changes made together trigger a single
+re-render:
+
+```javascript
+table.data.push({ name: "Dana", email: "dana@example.com" });
+table.data.splice(0, 1); // remove the first row
+table.data.sort((a, b) => a.name.localeCompare(b.name));
+table.data[0] = { ...table.data[0], name: "Alicia" }; // replace a row
+```
+
+Only changes to the array itself are observed. The array you passed in as
+`data` is not watched, and editing a property of a row object
+(`table.data[0].name = "x"`) does not trigger an update, so replace the row
+instead. In server mode the data is replaced on every fetch, so use the
+server API to change it.
 
 ## Plugins
 
