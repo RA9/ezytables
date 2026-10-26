@@ -98,6 +98,59 @@ const table = new EzyTables({
 });
 ```
 
+### Server Mode
+
+Pass `server` with an `api_url` to load rows from an API. A `renderFunction`
+draws them, the same as in render function mode.
+
+**Server-side paging.** Set `totalPath` to where the total row count lives in
+the response. EzyTables then asks the server for one page at a time and sends
+the table state as query parameters:
+
+```javascript
+const table = new EzyTables({
+  server: {
+    api_url: "/api/users",
+    limit: 10,
+    page: 1,
+    dataNames: "data", // rows are in response.data
+    totalPath: "meta.total", // total count is in response.meta.total
+  },
+  renderFunction: rows => {
+    /* draw the rows */
+  },
+});
+
+// GET /api/users?page=1&limit=10
+// after a search and a sort:
+// GET /api/users?page=1&limit=10&search=ali&sort=name&order=asc
+```
+
+`search` is only sent while searching, and `sort`/`order` only once a column is
+sorted. `onSearch` reports the server's total once the response arrives.
+
+**Custom URLs.** If your API uses different parameter names, pass `buildUrl`.
+It receives `{ url, page, limit, search, sort, order }` and returns the URL to
+request:
+
+```javascript
+server: {
+  api_url: "/api/users",
+  limit: 10,
+  page: 1,
+  dataNames: "items",
+  totalPath: "count",
+  buildUrl: ({ url, page, limit, search, sort, order }) =>
+    `${url}?offset=${(page - 1) * limit}&take=${limit}` +
+    (search ? `&q=${encodeURIComponent(search)}` : "") +
+    (sort ? `&orderBy=${sort}:${order}` : ""),
+},
+```
+
+**Without `totalPath`**, the request URL is left as it is and the response is
+treated as the full dataset. EzyTables searches, sorts and pages it in the
+browser.
+
 ## API Reference
 
 | Method                      | Returns      | Description                                            |
@@ -204,6 +257,8 @@ interface EasyTablesOptions {
     limit: number;
     page: number;
     dataNames: string; // Dot-separated path to the rows in the response (e.g. "data.items")
+    totalPath?: string; // Dot-separated path to the total row count; turns on server-side paging
+    buildUrl?: (query) => string; // Build the request URL yourself (see Server Mode)
   };
   columns?: Column[];
   classes?: Classes; // CSS class overrides

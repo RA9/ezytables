@@ -211,6 +211,187 @@ describe("Constructor & Initialization", () => {
   });
 });
 
+describe("Server mode", () => {
+  // 45 users; the fake API honors page, limit, search, sort and order
+  const users = Array.from({ length: 45 }, (_, i) => ({
+    id: i + 1,
+    name: `User ${String(i + 1).padStart(2, "0")}`,
+  }));
+  let requestedUrls: string[];
+
+  beforeEach(() => {
+    requestedUrls = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        requestedUrls.push(url);
+        const params = new URL(url, "https://api.example.com").searchParams;
+        let rows = users.filter(u =>
+          u.name.toLowerCase().includes(params.get("search") ?? "")
+        );
+        if (params.get("sort") === "id" && params.get("order") === "desc") {
+          rows = [...rows].reverse();
+        }
+        const page = Number(params.get("page") ?? 1);
+        const limit = Number(params.get("limit") ?? rows.length);
+        return {
+          ok: true,
+          json: async () => ({
+            data: rows.slice((page - 1) * limit, page * limit),
+            meta: { total: rows.length },
+          }),
+        };
+      })
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function createServerTable(server: Record<string, any> = {}) {
+    let rendered: any[] = [];
+    const onSearch = vi.fn();
+    const table = new EzyTables({
+      server: {
+        api_url: "https://api.example.com/users",
+        limit: 10,
+        page: 1,
+        dataNames: "data",
+        ...server,
+      },
+      renderFunction: rows => {
+        rendered = rows as any[];
+      },
+      onSearch,
+    });
+    return { table, onSearch, getRendered: () => rendered };
+  }
+
+  it("sends page and limit and paginates from totalPath", async () => {
+    const { table, getRendered } = createServerTable({
+      totalPath: "meta.total",
+    });
+    await flushPromises();
+
+    expect(requestedUrls[0]).toBe(
+      "https://api.example.com/users?page=1&limit=10"
+    );
+    expect(getRendered()).toHaveLength(10);
+    expect(table.getTotalPages()).toBe(5);
+
+    table.goToPage(5);
+    await flushPromises();
+    expect(requestedUrls.at(-1)).toBe(
+      "https://api.example.com/users?page=5&limit=10"
+    );
+    expect(getRendered().map(u => u.id)).toEqual([41, 42, 43, 44, 45]);
+    expect(table.getShowingInfo()).toBe("Showing 41 to 45 of 45 items.");
+  });
+
+  it("sends search, sort and order, and reports the server's result count", async () => {
+    vi.useFakeTimers();
+    try {
+      const { table, onSearch, getRendered } = createServerTable({
+        totalPath: "meta.total",
+      });
+      await vi.advanceTimersByTimeAsync(0);
+
+      table.setSearchDebounced("user 1");
+      await vi.advanceTimersByTimeAsync(300);
+      expect(requestedUrls.at(-1)).toBe(
+        "https://api.example.com/users?page=1&limit=10&search=user+1"
+      );
+      // Names are zero-padded ("User 01"), so "user 1" matches User 10-19
+      expect(onSearch).toHaveBeenLastCalledWith("user 1", 10);
+      expect(table.getTotalPages()).toBe(1);
+      expect(table.getShowingInfo()).toBe("Showing 1 to 10 of 10 items.");
+
+      table.sortData("id", "desc");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(requestedUrls.at(-1)).toBe(
+        "https://api.example.com/users?page=1&limit=10&search=user+1&sort=id&order=desc"
+      );
+      expect(getRendered()[0].id).toBe(19);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("appends to an api_url that already has a query string", async () => {
+    createServerTable({
+      api_url: "https://api.example.com/users?team=a",
+      totalPath: "meta.total",
+    });
+    await flushPromises();
+
+    expect(requestedUrls[0]).toBe(
+      "https://api.example.com/users?team=a&page=1&limit=10"
+    );
+  });
+
+  it("uses buildUrl for the request URL", async () => {
+    const buildUrl = vi.fn(
+      (q: any) => `${q.url}?offset=${(q.page - 1) * q.limit}&take=${q.limit}`
+    );
+    const { table } = createServerTable({ totalPath: "meta.total", buildUrl });
+    await flushPromises();
+
+    table.nextPage();
+    await flushPromises();
+
+    expect(buildUrl).toHaveBeenLastCalledWith({
+      url: "https://api.example.com/users",
+      page: 2,
+      limit: 10,
+      search: "",
+      sort: null,
+      order: "asc",
+    });
+    expect(requestedUrls.at(-1)).toBe(
+      "https://api.example.com/users?offset=10&take=10"
+    );
+  });
+
+  it("without totalPath, leaves the URL alone and searches, sorts and pages the full response locally", async () => {
+    vi.useFakeTimers();
+    try {
+      const { table, getRendered } = createServerTable();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(requestedUrls[0]).toBe("https://api.example.com/users");
+      expect(getRendered()).toHaveLength(10);
+      expect(table.getTotalPages()).toBe(5);
+
+      table.setSearchDebounced("user 4");
+      await vi.advanceTimersByTimeAsync(300);
+      expect(requestedUrls.at(-1)).toBe("https://api.example.com/users");
+      expect(getRendered().map(u => u.id)).toEqual([40, 41, 42, 43, 44, 45]);
+
+      table.sortData("id", "desc");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(getRendered()[0].id).toBe(45);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("logs an error and falls back to the page size when the total is missing", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { table } = createServerTable({ totalPath: "meta.count" });
+      await flushPromises();
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        "Total property 'count' not found in the server response."
+      );
+      expect(table.getTotalPages()).toBe(1);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 2. Pagination
 // ---------------------------------------------------------------------------
