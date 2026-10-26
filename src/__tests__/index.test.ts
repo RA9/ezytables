@@ -854,6 +854,128 @@ describe("Target Table Accessibility", () => {
 // ---------------------------------------------------------------------------
 // 5. Per Page
 // ---------------------------------------------------------------------------
+describe("Custom labels", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+    document.getElementById("ezy-tables-styles")?.remove();
+  });
+
+  const frenchLabels = {
+    tableAriaLabel: "Tableau de données",
+    perPage: "Par page : ",
+    perPageAriaLabel: "Lignes par page",
+    search: "Rechercher",
+    previous: "Précédent",
+    previousAriaLabel: "Page précédente",
+    next: "Suivant",
+    nextAriaLabel: "Page suivante",
+    pageOf: (page: number, total: number) => `Page ${page} sur ${total}`,
+    showing: (start: number, end: number, total: number, unfiltered?: number) =>
+      `${start}–${end} sur ${total}` +
+      (unfiltered === undefined ? "" : ` (filtré de ${unfiltered})`),
+    noItems: "Aucun élément",
+    noResults: "Aucun résultat",
+    noData: "Aucune donnée",
+  };
+
+  it("renders every built-in string from the labels option", async () => {
+    document.body.innerHTML = "<table></table>";
+    const table = new EzyTables({
+      target: "table",
+      data: [{ name: "Alice" }, { name: "Bob" }],
+      columns: [{ name: "name", label: "Nom" }],
+      client: { limit: 10, perPage: 1 },
+      labels: frenchLabels,
+    });
+    await flushPromises();
+
+    const q = (selector: string) =>
+      document.querySelector(selector) as HTMLElement;
+    expect(q(".ezy-tables").getAttribute("aria-label")).toBe(
+      "Tableau de données"
+    );
+    expect(q(".ezy-tables-per-page-label-text").textContent).toBe(
+      "Par page : "
+    );
+    expect(q(".ezy-tables-per-page-select").getAttribute("aria-label")).toBe(
+      "Lignes par page"
+    );
+    expect(q(".ezy-tables-search-input").getAttribute("placeholder")).toBe(
+      "Rechercher"
+    );
+    expect(q(".ezy-tables-search-input").getAttribute("aria-label")).toBe(
+      "Rechercher"
+    );
+    const prev = q('[data-ezy-action="prev"]');
+    const next = q('[data-ezy-action="next"]');
+    expect(prev.textContent).toBe("Précédent");
+    expect(prev.getAttribute("aria-label")).toBe("Page précédente");
+    expect(next.textContent).toBe("Suivant");
+    expect(next.getAttribute("aria-label")).toBe("Page suivante");
+    expect(q(".ezy-tables-footer-page").textContent).toBe("Page 1 sur 2");
+    expect(q(".ezy-tables-footer-info").textContent).toBe("1–1 sur 2");
+    expect(table.getShowingInfo()).toBe("1–1 sur 2");
+  });
+
+  it("uses the empty-state labels", async () => {
+    vi.useFakeTimers();
+    try {
+      document.body.innerHTML = "<table></table>";
+      const table = new EzyTables({
+        target: "table",
+        data: [{ name: "Alice" }],
+        columns: [{ name: "name", label: "Nom" }],
+        labels: frenchLabels,
+      });
+      await vi.advanceTimersByTimeAsync(0);
+
+      table.setSearchDebounced("zzz");
+      await vi.advanceTimersByTimeAsync(300);
+      expect(document.querySelector("tbody td")?.textContent).toBe(
+        "Aucun résultat"
+      );
+      expect(table.getShowingInfo()).toBe("Aucun élément");
+
+      document.body.innerHTML =
+        '<table id="empty"><thead><tr><th data-name="name">Nom</th></tr></thead><tbody></tbody></table>';
+      new EzyTables({ target: "#empty", labels: frenchLabels });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(
+        document
+          .querySelector("#empty")
+          ?.previousElementSibling?.querySelector("tbody td")?.textContent
+      ).toBe("Aucune donnée");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("passes the unfiltered total to showing() only while searching", async () => {
+    vi.useFakeTimers();
+    try {
+      const showing = vi.fn(
+        (start: number, end: number, total: number, unfiltered?: number) =>
+          `${start}-${end}/${total}/${unfiltered}`
+      );
+      const { table } = createInstance({ labels: { showing } });
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(table.getShowingInfo()).toBe("1-3/10/undefined");
+
+      table.setSearchDebounced("Admin");
+      await vi.advanceTimersByTimeAsync(300);
+      expect(table.getShowingInfo()).toBe("1-3/3/10");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the default text for labels that are not overridden", () => {
+    const { table } = createInstance({ labels: { next: "Weiter" } });
+    expect(table.getShowingInfo()).toBe("Showing 1 to 3 of 10 items.");
+  });
+});
+
 describe("Per Page", () => {
   it("setPerPage() changes items per page", async () => {
     const { table, getRenderedData } = createInstance();

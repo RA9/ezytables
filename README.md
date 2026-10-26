@@ -213,12 +213,45 @@ interface EasyTablesOptions {
     footer?: boolean; // Hide pagination footer
   };
   perPageOptions?: number[]; // Custom per-page dropdown options (default: [5, 10, 25, 50, 100])
+  labels?: EzyTablesLabels; // Override built-in UI text (see Custom labels)
   onPageChange?: (page: number, totalPages: number) => void;
   onSearch?: (query: string, resultCount: number) => void;
   onSort?: (field: string, order: "asc" | "desc") => void;
   onDataChange?: (newData: any[]) => void;
   sanitize?: boolean; // Sanitize plugin transform HTML before assigning innerHTML (default: true)
 }
+```
+
+### Custom labels
+
+Every piece of built-in text can be changed with `labels`, for example to
+translate the table. Labels you leave out keep their English defaults. Text
+that includes numbers is a function, so you can put the numbers wherever your
+language needs them:
+
+```javascript
+const table = new EzyTables({
+  target: "#myTable",
+  data: myData,
+  labels: {
+    perPage: "Par page : ",
+    perPageAriaLabel: "Lignes par page",
+    search: "Rechercher", // placeholder and accessible name
+    previous: "Précédent",
+    previousAriaLabel: "Page précédente",
+    next: "Suivant",
+    nextAriaLabel: "Page suivante",
+    pageOf: (page, totalPages) => `Page ${page} sur ${totalPages}`,
+    // totalUnfiltered is only passed while a search is active
+    showing: (start, end, total, totalUnfiltered) =>
+      `${start}–${end} sur ${total}` +
+      (totalUnfiltered === undefined ? "" : ` (filtré de ${totalUnfiltered})`),
+    noItems: "Aucun élément", // footer when there is nothing to show
+    noResults: "Aucun résultat", // table body when a search matches nothing
+    noData: "Aucune donnée", // table body when there is no data
+    tableAriaLabel: "Tableau de données", // used when the table has no aria-label, caption or id
+  },
+});
 ```
 
 ## Development

@@ -51,6 +51,51 @@ export interface Classes {
   };
 }
 
+// Text for the built-in UI. Functions receive the numbers to show, so
+// translations can order words as their language requires.
+export interface EzyTablesLabels {
+  tableAriaLabel?: string; // Fallback table name when the table has no aria-label, caption or id
+  perPage?: string; // Visible label before the per-page select
+  perPageAriaLabel?: string;
+  search?: string; // Search box placeholder and accessible name
+  previous?: string;
+  previousAriaLabel?: string;
+  next?: string;
+  nextAriaLabel?: string;
+  pageOf?: (page: number, totalPages: number) => string;
+  // `totalUnfiltered` is only passed while a search is active
+  showing?: (
+    start: number,
+    end: number,
+    total: number,
+    totalUnfiltered?: number
+  ) => string;
+  noItems?: string; // Footer text when there is nothing to show
+  noResults?: string; // Empty table body while searching
+  noData?: string; // Empty table body without a search
+}
+
+const defaultLabels: Required<EzyTablesLabels> = {
+  tableAriaLabel: "EzyTables data table",
+  perPage: "Per page: ",
+  perPageAriaLabel: "Rows per page",
+  search: "Search",
+  previous: "Previous",
+  previousAriaLabel: "Previous page",
+  next: "Next",
+  nextAriaLabel: "Next page",
+  pageOf: (page, totalPages) => `Page ${page} of ${totalPages}`,
+  showing: (start, end, total, totalUnfiltered) =>
+    `Showing ${start} to ${end} of ${total} items${
+      totalUnfiltered === undefined
+        ? ""
+        : ` (filtered from ${totalUnfiltered} total items)`
+    }.`,
+  noItems: "No items to show",
+  noResults: "No data was found!",
+  noData: "No data available!",
+};
+
 export interface EzyTablesOptions {
   clientEnabled?: boolean; // Use client-side data (default: true, or false when server.api_url is set)
   data?: any[]; // Data source (only for client-side)
@@ -76,6 +121,7 @@ export interface EzyTablesOptions {
     footer?: boolean;
   };
   perPageOptions?: number[]; // Custom per-page dropdown options (default: [5, 10, 25, 50, 100])
+  labels?: EzyTablesLabels; // Override built-in UI text, e.g. for translation
   onPageChange?: (page: number, totalPages: number) => void;
   onSearch?: (query: string, resultCount: number) => void;
   onSort?: (field: string, order: "asc" | "desc") => void;
@@ -142,6 +188,7 @@ export class EzyTables {
   private headerLabelsFromMarkup = false;
   private tableUpdateScheduled = false;
   private pendingFocus: FocusSnapshot | null = null;
+  private labels: Required<EzyTablesLabels>;
   private sanitizePluginOutput: boolean;
 
   constructor(opts: EzyTablesOptions) {
@@ -182,6 +229,7 @@ export class EzyTables {
 
     this.plugins = opts?.plugins || [];
     this.perPageOptions = opts.perPageOptions || [5, 10, 25, 50, 100];
+    this.labels = { ...defaultLabels, ...opts.labels };
     this.onPageChange = opts.onPageChange;
     this.onSearch = opts.onSearch;
     this.onSort = opts.onSort;
@@ -589,7 +637,7 @@ export class EzyTables {
 
   private getTableLabel(): string {
     if (!this.targetTable) {
-      return "EzyTables data table";
+      return this.labels.tableAriaLabel;
     }
 
     const ariaLabel = this.targetTable.getAttribute("aria-label")?.trim();
@@ -611,32 +659,26 @@ export class EzyTables {
       return /table$/i.test(readableId) ? readableId : `${readableId} table`;
     }
 
-    return "EzyTables data table";
+    return this.labels.tableAriaLabel;
   }
 
   // Method to get information about the items being displayed
   getShowingInfo(): string {
-    let filteredItems = "";
-
-    if (this.dataMode === DataMode.Filtered) {
-      const filteredData = this.filterData();
-      const totalItems = filteredData.length;
-      if (totalItems === 0) {
-        return "No items to show";
-      }
-      const startIndex = (this.currentPage - 1) * this.perPage + 1;
-      const endIndex = Math.min(startIndex + this.perPage - 1, totalItems);
-      filteredItems = ` (filtered from ${this._data.length} total items)`;
-      return `Showing ${startIndex} to ${endIndex} of ${totalItems} items${filteredItems}.`;
-    } else {
-      const totalItems = this.getTotalItems();
-      if (totalItems === 0) {
-        return "No items to show";
-      }
-      const startIndex = (this.currentPage - 1) * this.perPage + 1;
-      const endIndex = Math.min(startIndex + this.perPage - 1, totalItems);
-      return `Showing ${startIndex} to ${endIndex} of ${totalItems} items${filteredItems}.`;
+    const isFiltered = this.dataMode === DataMode.Filtered;
+    const totalItems = isFiltered
+      ? this.filterData().length
+      : this.getTotalItems();
+    if (totalItems === 0) {
+      return this.labels.noItems;
     }
+    const startIndex = (this.currentPage - 1) * this.perPage + 1;
+    const endIndex = Math.min(startIndex + this.perPage - 1, totalItems);
+    return this.labels.showing(
+      startIndex,
+      endIndex,
+      totalItems,
+      isFiltered ? this._data.length : undefined
+    );
   }
 
   private getTotalItems(): number {
@@ -1058,11 +1100,11 @@ export class EzyTables {
 
       const perPageLabelText = document.createElement("span");
       perPageLabelText.classList.add("ezy-tables-per-page-label-text");
-      perPageLabelText.innerText = "Per page: ";
+      perPageLabelText.innerText = this.labels.perPage;
 
       const perPageSelect = document.createElement("select");
       perPageSelect.classList.add("ezy-tables-per-page-select");
-      perPageSelect.setAttribute("aria-label", "Rows per page");
+      perPageSelect.setAttribute("aria-label", this.labels.perPageAriaLabel);
 
       const perPageOptions = this.perPageOptions;
 
@@ -1130,14 +1172,14 @@ export class EzyTables {
           `${this.dynamicClasses["ezy-tables-search-input"]}`
         );
         searchInput.setAttribute("type", "search");
-        searchInput.setAttribute("placeholder", "Search");
+        searchInput.setAttribute("placeholder", this.labels.search);
       } else {
         searchInput = document.querySelector(
           `.${this.dynamicClasses["ezy-tables-search-input"]}`
         )!;
       }
 
-      searchInput.setAttribute("aria-label", "Search");
+      searchInput.setAttribute("aria-label", this.labels.search);
 
       // add search input classes if exists
       if (this.htmlClasses.header?.search?.input) {
@@ -1209,9 +1251,9 @@ export class EzyTables {
       const isLastPage = this.currentPage >= totalPages;
 
       const prevButton = document.createElement("button");
-      prevButton.textContent = "Previous";
+      prevButton.textContent = this.labels.previous;
       prevButton.classList.add("ezy-tables-footer-button");
-      prevButton.setAttribute("aria-label", "Previous page");
+      prevButton.setAttribute("aria-label", this.labels.previousAriaLabel);
       prevButton.setAttribute("data-ezy-action", "prev");
       prevButton.setAttribute("aria-disabled", String(isFirstPage));
       prevButton.disabled = isFirstPage;
@@ -1225,9 +1267,9 @@ export class EzyTables {
       );
 
       const nextButton = document.createElement("button");
-      nextButton.textContent = "Next";
+      nextButton.textContent = this.labels.next;
       nextButton.classList.add("ezy-tables-footer-button");
-      nextButton.setAttribute("aria-label", "Next page");
+      nextButton.setAttribute("aria-label", this.labels.nextAriaLabel);
       nextButton.setAttribute("data-ezy-action", "next");
       nextButton.setAttribute("aria-disabled", String(isLastPage));
       nextButton.disabled = isLastPage;
@@ -1243,10 +1285,10 @@ export class EzyTables {
       const currentPageIndicator = document.createElement("span");
       currentPageIndicator.classList.add("ezy-tables-footer-page");
       currentPageIndicator.setAttribute("aria-current", "page");
-      currentPageIndicator.textContent = `Page ${Math.min(
-        this.currentPage,
+      currentPageIndicator.textContent = this.labels.pageOf(
+        Math.min(this.currentPage, totalPages),
         totalPages
-      )} of ${totalPages}`;
+      );
 
       footerButtons.appendChild(prevButton);
       footerButtons.appendChild(currentPageIndicator);
@@ -1407,8 +1449,8 @@ export class EzyTables {
       td.style.textAlign = "center";
       td.textContent =
         this.dataMode == DataMode.Filtered
-          ? "No data was found!"
-          : "No data available!";
+          ? this.labels.noResults
+          : this.labels.noData;
 
       tr.appendChild(td);
       tbody.appendChild(tr);
