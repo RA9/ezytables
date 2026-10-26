@@ -59,7 +59,7 @@ export interface EzyTablesOptions {
     headers?: Record<string, string>; // Optional headers for server-side data fetching
     limit: number; // Items per page for server-side
     page: number; // Current page for server-side
-    dataNames: string; // Comma-separated data names for server-side (e.g., "data1,data2,data3")
+    dataNames: string; // Dot-separated path to the rows in the response (e.g., "data.items" reads response.data.items)
   };
   client?: {
     limit: number;
