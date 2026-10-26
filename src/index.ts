@@ -51,6 +51,16 @@ export interface Classes {
   };
 }
 
+// The table state passed to server.buildUrl()
+export interface EzyTablesServerQuery {
+  url: string; // server.api_url
+  page: number;
+  limit: number;
+  search: string; // "" when not searching
+  sort: string | null; // null when not sorted
+  order: "asc" | "desc";
+}
+
 export interface EzyTablesOptions {
   clientEnabled?: boolean; // Use client-side data (default: true, or false when server.api_url is set)
   data?: any[]; // Data source (only for client-side)
@@ -60,6 +70,11 @@ export interface EzyTablesOptions {
     limit: number; // Items per page for server-side
     page: number; // Current page for server-side
     dataNames: string; // Dot-separated path to the rows in the response (e.g., "data.items" reads response.data.items)
+    // Dot-separated path to the total row count in the response (e.g. "meta.total").
+    // Setting it turns on server-side paging: page, limit, search, sort and order
+    // are sent to the server, and each response holds only the current page.
+    totalPath?: string;
+    buildUrl?: (query: EzyTablesServerQuery) => string; // Build the request URL yourself
   };
   client?: {
     limit: number;
@@ -110,7 +125,10 @@ export class EzyTables {
     limit: number;
     page: number;
     dataNames: string[];
+    totalPath: string[];
+    buildUrl?: (query: EzyTablesServerQuery) => string;
   };
+  private serverTotal = 0;
 
   private hideDetails: {
     header?: boolean;
@@ -203,6 +221,8 @@ export class EzyTables {
       limit: opts.server?.limit || 10,
       page: opts.server?.page || 1,
       dataNames: opts.server?.dataNames ? opts.server.dataNames.split(".") : [],
+      totalPath: opts.server?.totalPath ? opts.server.totalPath.split(".") : [],
+      buildUrl: opts.server?.buildUrl,
     };
 
     this.columns = opts.columns || [];
@@ -336,104 +356,65 @@ export class EzyTables {
   // Get data based on the specified data mode (filtered or paginated)
   async getData(): Promise<string[]> {
     if (this.serverEnabled && !this.targetTable) {
-      try {
-        const response = await fetch(this.serverOptions.api_url, {
-          method: "GET",
-          headers: this.serverOptions.headers,
-        });
+      const rows = await this.fetchServerRows();
+      if (rows === null) return [];
 
-        if (response.ok) {
-          const rawData = await response.json();
-          let actualData = rawData;
+      // The server already searched, sorted and paged these rows
+      if (this.usesServerPaging()) return rows;
 
-          if (
-            this.serverOptions.dataNames &&
-            this.serverOptions.dataNames.length > 0
-          ) {
-            const dataNames = this.serverOptions.dataNames;
-            for (const name of dataNames) {
-              if (Object.prototype.hasOwnProperty.call(actualData, name)) {
-                actualData = actualData[name];
-              } else {
-                console.error(
-                  `Data property '${name}' not found in the server response.`
-                );
-                return [];
-              }
-            }
-          }
-
-          this._data = actualData;
-
-          if (this.dataMode === DataMode.Paginated) {
-            const startIndex = (this.currentPage - 1) * this.perPage;
-            const endIndex = startIndex + this.perPage;
-
-            return actualData.slice(startIndex, endIndex);
-          }
-
-          return actualData;
-        } else {
-          console.error(
-            "Error fetching data:",
-            response.status,
-            response.statusText
-          );
-          return [];
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        return [];
-      }
-    } else {
-      let dataToUse = [].concat(this._data as any);
-
-      if (this.dataMode === DataMode.Filtered) {
-        dataToUse = this.filterData() as any;
-      }
-
-      if (this.sortField) {
-        const field = this.sortField;
-        const order = this.sortOrder;
-        dataToUse.sort((a: any, b: any) => {
-          if (
-            !Object.prototype.hasOwnProperty.call(a, field) ||
-            !Object.prototype.hasOwnProperty.call(b, field)
-          ) {
-            return 0;
-          }
-
-          // Compare numerically when both values are numbers or numeric
-          // strings (e.g. cells read from an existing table's HTML).
-          const numA = this.toSortableNumber(a[field]);
-          const numB = this.toSortableNumber(b[field]);
-          const bothNumeric = numA !== null && numB !== null;
-
-          const varA = bothNumeric
-            ? numA
-            : typeof a[field] === "string"
-            ? a[field].toUpperCase()
-            : a[field];
-          const varB = bothNumeric
-            ? numB
-            : typeof b[field] === "string"
-            ? b[field].toUpperCase()
-            : b[field];
-
-          let comparison = 0;
-          if (varA > varB) {
-            comparison = 1;
-          } else if (varA < varB) {
-            comparison = -1;
-          }
-          return order === "desc" ? comparison * -1 : comparison;
-        });
-      }
-
-      const startIndex = (this.currentPage - 1) * this.perPage;
-      const endIndex = startIndex + this.perPage;
-      return dataToUse.slice(startIndex, endIndex) as any;
+      // Otherwise the response is the full dataset: search, sort and page
+      // it locally, the same way as client-side data.
+      this._data = rows;
+      this._filteredDataCache = null;
     }
+
+    let dataToUse = [].concat(this._data as any);
+
+    if (this.dataMode === DataMode.Filtered) {
+      dataToUse = this.filterData() as any;
+    }
+
+    if (this.sortField) {
+      const field = this.sortField;
+      const order = this.sortOrder;
+      dataToUse.sort((a: any, b: any) => {
+        if (
+          !Object.prototype.hasOwnProperty.call(a, field) ||
+          !Object.prototype.hasOwnProperty.call(b, field)
+        ) {
+          return 0;
+        }
+
+        // Compare numerically when both values are numbers or numeric
+        // strings (e.g. cells read from an existing table's HTML).
+        const numA = this.toSortableNumber(a[field]);
+        const numB = this.toSortableNumber(b[field]);
+        const bothNumeric = numA !== null && numB !== null;
+
+        const varA = bothNumeric
+          ? numA
+          : typeof a[field] === "string"
+          ? a[field].toUpperCase()
+          : a[field];
+        const varB = bothNumeric
+          ? numB
+          : typeof b[field] === "string"
+          ? b[field].toUpperCase()
+          : b[field];
+
+        let comparison = 0;
+        if (varA > varB) {
+          comparison = 1;
+        } else if (varA < varB) {
+          comparison = -1;
+        }
+        return order === "desc" ? comparison * -1 : comparison;
+      });
+    }
+
+    const startIndex = (this.currentPage - 1) * this.perPage;
+    const endIndex = startIndex + this.perPage;
+    return dataToUse.slice(startIndex, endIndex) as any;
   }
 
   // Returns the value as a finite number if it is a number or a numeric
@@ -447,6 +428,111 @@ export class EzyTables {
       return Number.isFinite(parsed) ? parsed : null;
     }
     return null;
+  }
+
+  private usesServerPaging(): boolean {
+    return (
+      this.serverEnabled &&
+      !this.targetTable &&
+      this.serverOptions.totalPath.length > 0
+    );
+  }
+
+  private buildServerUrl(): string {
+    const { api_url: url, buildUrl } = this.serverOptions;
+    const query: EzyTablesServerQuery = {
+      url,
+      page: this.currentPage,
+      limit: this.perPage,
+      search: this.dataMode === DataMode.Filtered ? this.searchQuery : "",
+      sort: this.sortField,
+      order: this.sortOrder,
+    };
+
+    if (buildUrl) return buildUrl(query);
+
+    // Without server-side paging the URL is left untouched, so servers that
+    // already honor page/limit keep returning the full dataset.
+    if (!this.usesServerPaging()) return url;
+
+    const params = new URLSearchParams({
+      page: String(query.page),
+      limit: String(query.limit),
+    });
+    if (query.search) params.set("search", query.search);
+    if (query.sort) {
+      params.set("sort", query.sort);
+      params.set("order", query.order);
+    }
+    return `${url}${url.includes("?") ? "&" : "?"}${params}`;
+  }
+
+  // Walk a dot-separated path into a response; undefined if a key is missing
+  private readResponsePath(
+    body: any,
+    path: string[],
+    description: string
+  ): any {
+    let value = body;
+    for (const name of path) {
+      if (
+        value === null ||
+        typeof value !== "object" ||
+        !Object.prototype.hasOwnProperty.call(value, name)
+      ) {
+        console.error(
+          `${description} '${name}' not found in the server response.`
+        );
+        return undefined;
+      }
+      value = value[name];
+    }
+    return value;
+  }
+
+  // Fetch rows from the server; null when the request or response fails
+  private async fetchServerRows(): Promise<any[] | null> {
+    try {
+      const response = await fetch(this.buildServerUrl(), {
+        method: "GET",
+        headers: this.serverOptions.headers,
+      });
+
+      if (!response.ok) {
+        console.error(
+          "Error fetching data:",
+          response.status,
+          response.statusText
+        );
+        return null;
+      }
+
+      const body = await response.json();
+      const rows = this.readResponsePath(
+        body,
+        this.serverOptions.dataNames,
+        "Data property"
+      );
+      if (rows === undefined) return null;
+
+      if (this.usesServerPaging()) {
+        const total = Number(
+          this.readResponsePath(
+            body,
+            this.serverOptions.totalPath,
+            "Total property"
+          )
+        );
+        this.serverTotal = Number.isFinite(total) ? total : rows.length;
+        this._data = rows;
+        this._filteredDataCache = null;
+      }
+
+      return rows;
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return null;
+    }
   }
 
   private debounce(func: Function, delay: number) {
@@ -482,6 +568,16 @@ export class EzyTables {
     }
 
     this.currentPage = 1; // Reset to the first page when searching
+
+    if (this.usesServerPaging()) {
+      // The result count is only known once the server has answered
+      this.triggerPageChangeIfChanged(previousPage, previousTotalPages);
+      this.updateTable().then(
+        () => this.onSearch?.(this.searchQuery, this.serverTotal)
+      );
+      return;
+    }
+
     this.onSearch?.(
       this.searchQuery,
       this.dataMode === DataMode.Filtered
@@ -576,6 +672,10 @@ export class EzyTables {
   }
 
   getTotalPages(): number {
+    if (this.usesServerPaging()) {
+      return this.calculateTotalPages(this.serverTotal);
+    }
+
     if (this.dataMode === DataMode.Filtered) {
       return this.calculateTotalPages(this.filterData().length);
     }
@@ -618,7 +718,7 @@ export class EzyTables {
   getShowingInfo(): string {
     let filteredItems = "";
 
-    if (this.dataMode === DataMode.Filtered) {
+    if (this.dataMode === DataMode.Filtered && !this.usesServerPaging()) {
       const filteredData = this.filterData();
       const totalItems = filteredData.length;
       if (totalItems === 0) {
@@ -640,6 +740,7 @@ export class EzyTables {
   }
 
   private getTotalItems(): number {
+    if (this.usesServerPaging()) return this.serverTotal;
     if (this.dataMode === DataMode.Filtered) {
       return this.filterData().length;
     }
