@@ -159,6 +159,26 @@ describe("Constructor & Initialization", () => {
       expect(renderFn).toHaveBeenLastCalledWith(serverRows);
     });
 
+    it("reads rows from the dot-separated dataNames path", async () => {
+      fetchMock.mockImplementation(async () => ({
+        ok: true,
+        json: async () => ({ data: { items: serverRows } }),
+      }));
+      const renderFn = vi.fn();
+      new EzyTables({
+        server: {
+          api_url: "https://api.example.com/users",
+          limit: 10,
+          page: 1,
+          dataNames: "data.items",
+        },
+        renderFunction: renderFn,
+      });
+      await flushPromises();
+
+      expect(renderFn).toHaveBeenLastCalledWith(serverRows);
+    });
+
     it("lets an explicit clientEnabled override the server config", async () => {
       const server = {
         api_url: "https://api.example.com/users",

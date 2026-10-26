@@ -183,7 +183,7 @@ interface EasyTablesOptions {
     headers?: Record<string, string>;
     limit: number;
     page: number;
-    dataNames: string; // Dot-separated path to data in response
+    dataNames: string; // Dot-separated path to the rows in the response (e.g. "data.items")
   };
   columns?: Column[];
   classes?: Classes; // CSS class overrides
