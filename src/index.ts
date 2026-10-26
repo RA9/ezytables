@@ -133,6 +133,7 @@ export class EzyTables {
   private dataChangeNotificationScheduled = false;
   private destroyed = false;
   private headerLabelsFromMarkup = false;
+  private tableUpdateScheduled = false;
   private sanitizePluginOutput: boolean;
 
   constructor(opts: EzyTablesOptions) {
@@ -150,7 +151,7 @@ export class EzyTables {
       (!opts.target && !this.serverEnabled) ||
       (opts.target && opts.data && opts.data?.length > 0)
     ) {
-      this._data = this.createDataProxy(opts.data || [], !opts.target);
+      this._data = this.createDataProxy(opts.data || []);
     }
 
     this.hideDetails = opts.hideDetails || {};
@@ -660,15 +661,34 @@ export class EzyTables {
     });
   }
 
-  private createDataProxy(data: any[], shouldUpdate: boolean): any[] {
+  // Re-render once per microtask, however many array writes a mutation
+  // makes (push() sets both an index and length; sort() sets every index).
+  private queueTableUpdate(): void {
+    if (this.tableUpdateScheduled) return;
+
+    this.tableUpdateScheduled = true;
+    queueMicrotask(() => {
+      this.tableUpdateScheduled = false;
+      this.updateTable();
+    });
+  }
+
+  private handleDataMutation(): void {
+    this._filteredDataCache = null;
+    this.queueDataChangeNotification();
+    this.queueTableUpdate();
+  }
+
+  private createDataProxy(data: any[]): any[] {
     return new Proxy(data, {
       set: (target: any[], key: string | symbol, value) => {
         Reflect.set(target, key, value);
-        this._filteredDataCache = null;
-        this.queueDataChangeNotification();
-        if (shouldUpdate) {
-          this.updateTable();
-        }
+        this.handleDataMutation();
+        return true;
+      },
+      deleteProperty: (target: any[], key: string | symbol) => {
+        Reflect.deleteProperty(target, key);
+        this.handleDataMutation();
         return true;
       },
     });
@@ -755,7 +775,7 @@ export class EzyTables {
 
     if (!tbody) return null;
 
-    this._data = Array.from(tbody.querySelectorAll("tr")).map(
+    const rows = Array.from(tbody.querySelectorAll("tr")).map(
       (tr: HTMLElement) => {
         // Check if the row data is an array or an object
         if (Array.isArray(this._data[0])) {
@@ -775,6 +795,7 @@ export class EzyTables {
         }
       }
     );
+    this._data = this.createDataProxy(rows);
 
     return await this.getData();
   }
@@ -1534,6 +1555,14 @@ export class EzyTables {
     this._filteredDataCache = null;
   }
 
+  // The live, reactive data array. Changes made through it (push, splice,
+  // sort, index assignment, ...) re-render the table once and fire
+  // onDataChange. Changes to properties of a row object are not observed;
+  // replace the row instead (table.data[i] = { ...row, name: "x" }).
+  public get data(): any[] {
+    return this._data;
+  }
+
   public getRawData(): any[] {
     return [...this._data];
   }
@@ -1541,7 +1570,7 @@ export class EzyTables {
   public setData(data: any[]): void {
     const previousPage = this.currentPage;
     const previousTotalPages = this.getTotalPages();
-    this._data = this.createDataProxy(data, !this.targetTable);
+    this._data = this.createDataProxy(data);
     this._filteredDataCache = null;
     this.currentPage = 1;
     this.onDataChange?.([...this._data]);

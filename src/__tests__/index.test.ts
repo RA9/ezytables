@@ -868,6 +868,106 @@ describe("Data Management", () => {
     expect(table.getRawData()).toHaveLength(sampleData.length);
   });
 
+  describe("reactive table.data", () => {
+    afterEach(() => {
+      document.body.innerHTML = "";
+      document.getElementById("ezy-tables-styles")?.remove();
+    });
+
+    it("push() re-renders once and notifies onDataChange once", async () => {
+      const renderFn = vi.fn();
+      const onDataChange = vi.fn();
+      const table = new EzyTables({
+        data: [{ name: "Alice" }],
+        renderFunction: renderFn,
+        onDataChange,
+      });
+      await flushPromises();
+      renderFn.mockClear();
+
+      table.data.push({ name: "Bob" });
+      await flushPromises();
+
+      expect(renderFn).toHaveBeenCalledTimes(1);
+      expect(renderFn).toHaveBeenLastCalledWith([
+        { name: "Alice" },
+        { name: "Bob" },
+      ]);
+      expect(onDataChange).toHaveBeenCalledTimes(1);
+    });
+
+    it("batches mutations that write many indexes into one re-render", async () => {
+      const renderFn = vi.fn();
+      const table = new EzyTables({
+        data: [{ name: "Charlie" }, { name: "Alice" }, { name: "Bob" }],
+        renderFunction: renderFn,
+      });
+      await flushPromises();
+      renderFn.mockClear();
+
+      table.data.sort((a, b) => a.name.localeCompare(b.name));
+      table.data.splice(1, 1);
+      await flushPromises();
+
+      expect(renderFn).toHaveBeenCalledTimes(1);
+      expect(renderFn).toHaveBeenLastCalledWith([
+        { name: "Alice" },
+        { name: "Charlie" },
+      ]);
+    });
+
+    it("re-renders when a row is replaced or deleted by index", async () => {
+      const renderFn = vi.fn();
+      const table = new EzyTables({
+        data: [{ name: "Alice" }, { name: "Bob" }],
+        renderFunction: renderFn,
+      });
+      await flushPromises();
+
+      table.data[0] = { name: "Alicia" };
+      await flushPromises();
+      expect(renderFn).toHaveBeenLastCalledWith([
+        { name: "Alicia" },
+        { name: "Bob" },
+      ]);
+
+      renderFn.mockClear();
+      delete table.data[1];
+      await flushPromises();
+      expect(renderFn).toHaveBeenCalledTimes(1);
+    });
+
+    it("updates a target table when rows are pushed", async () => {
+      const { table } = createTargetTableInstance();
+      await flushPromises();
+
+      table.data.push({ name: "Dana", email: "dana@example.com" });
+      await flushPromises();
+
+      const rows = document.querySelectorAll(".ezy-tables tbody tr");
+      expect(rows).toHaveLength(4);
+      expect(rows[3].children[1].textContent).toBe("dana@example.com");
+    });
+
+    it("makes rows read from an existing table's HTML reactive", async () => {
+      document.body.innerHTML = `
+        <table id="html-rows">
+          <thead><tr><th data-name="name">Name</th></tr></thead>
+          <tbody><tr><td>Alice</td></tr></tbody>
+        </table>`;
+      const table = new EzyTables({ target: "#html-rows" });
+      await flushPromises();
+
+      table.data.push({ name: "Bob" });
+      await flushPromises();
+
+      const names = Array.from(
+        document.querySelectorAll(".ezy-tables tbody tr")
+      ).map(row => row.children[0].textContent);
+      expect(names).toEqual(["Alice", "Bob"]);
+    });
+  });
+
   it("setData() replaces the data and resets page", async () => {
     const { table, getRenderedData } = createInstance();
     await flushPromises();
